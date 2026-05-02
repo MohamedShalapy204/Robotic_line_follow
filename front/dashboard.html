@@ -110,18 +110,91 @@
                             </div>
                         </div>
 
-                        <!-- Step 3 -->
-                        <a href="https://www.youtube.com/watch?v=0aPbWsyENA8&list=PLLSegLrePWgJudpPUof4-nVFHGkB62Izy" target="_blank" 
-                           class="group flex items-center p-5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-200">
-                            <div class="w-12 h-12 rounded-full bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-slate-500 group-hover:text-blue-600 font-bold mr-4 transition-colors">
-                                3
+                        <!-- Step 3: Choose Your ROS Path -->
+                        <div x-data="{ 
+                            selectedPath: 'advanced', 
+                            showIframe: true,
+                            paths: {
+                                advanced: {
+                                    title: 'Option One: Advanced ROS Playlist',
+                                    desc: 'Optional supplementary videos for deeper understanding',
+                                    url: 'https://www.youtube.com/playlist?list=PLSK7NtBWwmpTS_YVfjeN3ZzIxItI1P_Sr',
+                                    embed: 'https://www.youtube.com/embed/videoseries?list=PLSK7NtBWwmpTS_YVfjeN3ZzIxItI1P_Sr'
+                                },
+                                crash: {
+                                    title: 'Option Two: Crash Course ROS',
+                                    desc: 'Master the basics of Robot Operating System (Step 3)',
+                                    url: 'https://www.youtube.com/watch?v=0aPbWsyENA8&list=PLLSegLrePWgJudpPUof4-nVFHGkB62Izy',
+                                    embed: 'https://www.youtube.com/embed/0aPbWsyENA8?list=PLLSegLrePWgJudpPUof4-nVFHGkB62Izy'
+                                }
+                            }
+                        }" class="space-y-4">
+                            <div class="p-6 rounded-2xl bg-slate-50 border border-slate-200">
+                                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold mr-4 shadow-lg shadow-blue-200">3</div>
+                                        <h4 class="text-lg font-bold text-slate-800 tracking-tight">Final Learning Step</h4>
+                                    </div>
+                                    <div class="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm self-start">
+                                        <button 
+                                            @click="selectedPath = 'advanced'" 
+                                            :class="selectedPath === 'advanced' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'"
+                                            class="px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 outline-none">
+                                            Option One
+                                        </button>
+                                        <button 
+                                            @click="selectedPath = 'crash'" 
+                                            :class="selectedPath === 'crash' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'"
+                                            class="px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 outline-none">
+                                            Option Two
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100 mb-4 shadow-sm">
+                                    <div class="flex-1">
+                                        <h5 class="font-bold text-slate-800 flex items-center" x-text="paths[selectedPath].title"></h5>
+                                        <p class="text-sm text-slate-500" x-text="paths[selectedPath].desc"></p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button @click="showIframe = !showIframe" class="px-4 py-2 text-xs font-bold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all shadow-sm">
+                                            <span x-text="showIframe ? 'Hide Preview' : 'Show Preview'"></span>
+                                        </button>
+                                        <a :href="paths[selectedPath].url" target="_blank" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100" title="Open in new tab">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div x-show="showIframe" x-collapse x-cloak class="aspect-video rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-black">
+                                    <iframe class="w-full h-full" :src="paths[selectedPath].embed" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                </div>
                             </div>
-                            <div class="flex-1">
-                                <h4 class="font-bold text-slate-800 group-hover:text-blue-700 transition-colors">Crash Course ROS</h4>
-                                <p class="text-sm text-slate-500">Master the basics of Robot Operating System</p>
+                        </div>
+
+                        <!-- Step 4: Learn Simulation -->
+                        <div x-data="{ showVideo: false }" class="space-y-4 pt-6 border-t border-slate-100">
+                            <div class="group flex items-center p-5 rounded-xl border border-slate-200 hover:border-purple-500 hover:bg-purple-50/50 transition-all duration-200">
+                                <div class="w-12 h-12 rounded-full bg-slate-100 group-hover:bg-purple-100 flex items-center justify-center text-slate-500 group-hover:text-purple-600 font-bold mr-4 transition-colors shadow-lg shadow-purple-50">
+                                    4
+                                </div>
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-slate-800 group-hover:text-purple-700 transition-colors">Learn Simulation</h4>
+                                    <p class="text-sm text-slate-500">Master Gazebo and robot simulation environments</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button @click="showVideo = !showVideo" class="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-600 rounded-lg hover:bg-purple-600 hover:text-white transition-all shadow-sm">
+                                        <span x-text="showVideo ? 'Hide Preview' : 'Show Preview'"></span>
+                                    </button>
+                                    <a href="https://youtube.com/playlist?list=PLWIFvNcdSDQupEsNLnAnCI6MwTqvGgkC1" target="_blank" class="p-2 text-slate-300 hover:text-purple-400 transition-colors border border-transparent hover:border-purple-100 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                    </a>
+                                </div>
                             </div>
-                            <svg class="w-5 h-5 text-slate-300 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                        </a>
+                            <div x-show="showVideo" x-collapse x-cloak class="aspect-video rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-black">
+                                <iframe class="w-full h-full" src="https://www.youtube.com/embed/videoseries?list=PLWIFvNcdSDQupEsNLnAnCI6MwTqvGgkC1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
