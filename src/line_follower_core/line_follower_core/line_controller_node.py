@@ -39,6 +39,7 @@ class LineControllerNode(Node):
 
     def error_callback(self, msg):
         error = msg.data
+        self.base_speed = self.get_parameter("base_speed").value
         
         # PID Logic
         self.integral += error
@@ -46,19 +47,17 @@ class LineControllerNode(Node):
         
         angular_z = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
         
-        # Apply limits or scaling if necessary
-        # For simplicity, just publish
-        
         twist = Twist()
-        # If error is very large, maybe slow down linear speed
-        if abs(error) > 1.5:
-            twist.linear.x = self.base_speed * 0.5
+        # Adaptive speed: slow down if error is large
+        if abs(error) > 1.0:
+            twist.linear.x = self.base_speed * 0.4
         else:
             twist.linear.x = self.base_speed
             
         twist.angular.z = angular_z
         
         self.publisher_.publish(twist)
+        self.get_logger().info(f"Error: {error:.2f} | Linear: {twist.linear.x:.2f} | Angular: {twist.angular.z:.2f}")
         self.prev_error = error
 
 def main(args=None):

@@ -65,11 +65,19 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True, 'kp': 1.0, 'base_speed': 0.1}]
     )
 
+    motor_driver_node = Node(
+        package=pkg_name,
+        executable='motor_driver_node.py',
+        output='screen',
+        parameters=[{'use_sim_time': True}]
+    )
+
     return LaunchDescription([
         gazebo,
         robot_state_publisher,
         spawn_entity,
         line_sensor_node,
         encoder_odometry_node,
-        line_controller_node
+        line_controller_node,
+        motor_driver_node
     ])

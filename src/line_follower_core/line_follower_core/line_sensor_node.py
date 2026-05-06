@@ -59,11 +59,11 @@ class LineSensorNode(Node):
             # Weighted average for error
             error = sum(val * weight for val, weight in zip(self.sensor_values, self.weights)) / total_on_line
             msg.data = error
+            self.get_logger().info(f"Line detected! Active sensors: {total_on_line} | Error: {error:.2f}")
         else:
-            # If no sensor is on line, we might be lost. 
-            # For now, just publish 0.0 or a special value?
-            # Let's publish 0.0 but maybe log a warning.
             msg.data = 0.0
+            # Use throttle to avoid flooding logs
+            self.get_logger().warn("No line detected!", throttle_duration_sec=2.0)
             
         self.publisher_.publish(msg)
 
