@@ -1,2 +1,36 @@
+# ROS 2 Build Artifacts
+install/
+build/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# VS Code & Editors
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# ESP32 & Arduino
+.pio/
+.espidf/
+node_modules/
+
+# ROS Bag files (Optional: ignore if they get too large)
+# *.mcap
+# *.db3
+
+# Other
 .agents
 graphify-out
