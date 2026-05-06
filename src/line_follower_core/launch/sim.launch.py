@@ -43,8 +43,33 @@ def generate_launch_description():
         launch_arguments={'world': world_file}.items()
     )
 
+    # Core Logic Nodes
+    line_sensor_node = Node(
+        package=pkg_name,
+        executable='line_sensor_node.py',
+        output='screen',
+        parameters=[{'use_sim_time': True}]
+    )
+
+    encoder_odometry_node = Node(
+        package=pkg_name,
+        executable='encoder_odometry_node.py',
+        output='screen',
+        parameters=[{'use_sim_time': True}]
+    )
+
+    line_controller_node = Node(
+        package=pkg_name,
+        executable='line_controller_node.py',
+        output='screen',
+        parameters=[{'use_sim_time': True, 'kp': 1.0, 'base_speed': 0.1}]
+    )
+
     return LaunchDescription([
         gazebo,
         robot_state_publisher,
-        spawn_entity
+        spawn_entity,
+        line_sensor_node,
+        encoder_odometry_node,
+        line_controller_node
     ])
