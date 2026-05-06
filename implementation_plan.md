@@ -11,7 +11,7 @@ This implementation plan outlines a step-by-step approach to building the ROS 2 
 * **Task 1.1 - Workspace Creation:** Create a `ros2_ws` with the standard `src` directory.
 * **Task 1.2 - Package Initialization:** Create a ROS 2 package `line_follower_core`. All nodes must be implemented using the **Object-Oriented (OOP)** structure (inheriting from `rclpy.Node`) as demonstrated in your `src/pub_sub` example, including proper use of timers and logger info.
 * **Task 1.3 - Dependencies:** Add dependencies (`geometry_msgs`, `std_msgs`, `nav_msgs`, `sensor_msgs`, and `rclpy`/`rclcpp`).
-* **Task 1.4 - Build & Validation:** Ensure the package builds successfully using `colcon build` and initialize a Git repository. *(Note: Maintain progressive Git commits throughout all phases to satisfy grading requirements).*
+* **Task 1.4 - Build & Validation:** Ensure the package builds successfully using `colcon build` and initialize a Git repository.
 
 ## Phase 2: Robot Modeling & Gazebo Simulation (URDF)
 **Goal:** Create a simulated digital twin of the differential-drive robot for initial testing.
