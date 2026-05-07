@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 import xacro
@@ -17,6 +17,10 @@ def generate_launch_description():
 
     # Path to world file
     world_file = os.path.join(pkg_path, 'worlds', 'line_track.world')
+
+    # Path to GUI folder (assuming it is in the source directory for easier development)
+    # But usually it is installed in the share directory.
+    gui_path = os.path.join(pkg_path, 'gui')
 
     # Path to Gazebo ROS launch file
     gazebo_ros_path = get_package_share_directory('gazebo_ros')
@@ -58,12 +62,13 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}]
     )
 
-    line_controller_node = Node(
-        package=pkg_name,
-        executable='line_controller_node.py',
-        output='screen',
-        parameters=[{'use_sim_time': True, 'kp': 1.0, 'base_speed': 0.1}]
-    )
+    # line_controller_node is disabled so the robot doesn't auto-move
+    # line_controller_node = Node(
+    #     package=pkg_name,
+    #     executable='line_controller_node.py',
+    #     output='screen',
+    #     parameters=[{'use_sim_time': True, 'kp': 1.0, 'base_speed': 0.1}]
+    # )
 
     motor_driver_node = Node(
         package=pkg_name,
@@ -72,12 +77,34 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}]
     )
 
+    rosbridge_node = Node(
+        package='rosbridge_server',
+        executable='rosbridge_websocket',
+        output='screen',
+        parameters=[{'use_sim_time': True}]
+    )
+
+    # Python HTTP Server and Browser Opener
+    start_gui_server = ExecuteProcess(
+        cmd=['python3', '-m', 'http.server', '8000'],
+        cwd=gui_path,
+        output='screen'
+    )
+
+    open_browser = ExecuteProcess(
+        cmd=['xdg-open', 'http://localhost:8000'],
+        output='screen'
+    )
+
     return LaunchDescription([
         gazebo,
         robot_state_publisher,
         spawn_entity,
         line_sensor_node,
         encoder_odometry_node,
-        line_controller_node,
-        motor_driver_node
+        # line_controller_node, # Disabled
+        motor_driver_node,
+        rosbridge_node,
+        start_gui_server,
+        open_browser
     ])

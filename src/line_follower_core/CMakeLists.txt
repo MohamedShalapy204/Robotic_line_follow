@@ -33,6 +33,7 @@ install(
   urdf
   config
   worlds
+  gui
   DESTINATION share/${PROJECT_NAME}
 )
 

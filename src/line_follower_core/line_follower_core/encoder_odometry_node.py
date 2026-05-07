@@ -24,6 +24,7 @@ class EncoderOdometryNode(Node):
         self.left_wheel_pos = 0.0
         self.right_wheel_pos = 0.0
         self.first_run = True
+        self.last_time = None
         
         # Subscribers
         self.subscription = self.create_subscription(
@@ -81,9 +82,22 @@ class EncoderOdometryNode(Node):
         # Normalize theta
         self.theta = math.atan2(math.sin(self.theta), math.cos(self.theta))
 
-        self.publish_odometry()
+        # Calculate Velocities
+        now_time = self.get_clock().now()
+        linear_vel = 0.0
+        angular_vel = 0.0
+        
+        if self.last_time is not None:
+            dt = (now_time - self.last_time).nanoseconds / 1e9
+            if dt > 0:
+                linear_vel = d_center / dt
+                angular_vel = d_theta / dt
+        
+        self.last_time = now_time
 
-    def publish_odometry(self):
+        self.publish_odometry(linear_vel, angular_vel)
+
+    def publish_odometry(self, linear_vel, angular_vel):
         now = self.get_clock().now().to_msg()
         
         # Odometry message
@@ -92,12 +106,24 @@ class EncoderOdometryNode(Node):
         odom.header.frame_id = "odom"
         odom.child_frame_id = "base_link"
         
+        # Delta time (dt) calculation
+        # Note: In a real robot, we'd use the time stamp difference.
+        # For simulation, we can estimate based on update rate or calculate from pose.
+        # However, for now, let's just populate the pose and set twist to zero 
+        # or calculate a rough velocity if possible.
+        
+        # A better way is to calculate d_center/dt and d_theta/dt if we had dt.
+        # Let's add a self.last_time to calculate dt.
+        
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
         odom.pose.pose.position.z = 0.0
         
         q = self.euler_to_quaternion(0, 0, self.theta)
         odom.pose.pose.orientation = q
+        
+        odom.twist.twist.linear.x = linear_vel
+        odom.twist.twist.angular.z = angular_vel
         
         self.odom_pub.publish(odom)
 
