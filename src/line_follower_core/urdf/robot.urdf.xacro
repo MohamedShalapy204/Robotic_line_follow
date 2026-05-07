@@ -57,8 +57,8 @@
     <joint name="left_wheel_joint" type="continuous">
         <parent link="base_link"/>
         <child link="left_wheel"/>
-        <origin xyz="0 ${wheel_separation/2} 0" rpy="-${pi/2} 0 0"/>
-        <axis xyz="0 0 1"/>
+        <origin xyz="0 ${wheel_separation/2} 0" rpy="${pi/2} 0 0"/>
+        <axis xyz="0 0 -1"/>
     </joint>
 
     <link name="left_wheel">
@@ -84,7 +84,7 @@
         <parent link="base_link"/>
         <child link="right_wheel"/>
         <origin xyz="0 -${wheel_separation/2} 0" rpy="${pi/2} 0 0"/>
-        <axis xyz="0 0 1"/>
+        <axis xyz="0 0 -1"/>
     </joint>
 
     <link name="right_wheel">
@@ -157,8 +157,8 @@
             <wheel_diameter>${2 * wheel_radius}</wheel_diameter>
 
             <!-- Limits -->
-            <max_wheel_torque>20</max_wheel_torque>
-            <max_wheel_acceleration>1.0</max_wheel_acceleration>
+            <max_wheel_torque>50</max_wheel_torque>
+            <max_wheel_acceleration>10.0</max_wheel_acceleration>
 
             <!-- Output -->
             <odometry_frame>odom</odometry_frame>
@@ -210,7 +210,8 @@
                     <ros>
                         <remapping>~/out:=${name}</remapping>
                     </ros>
-                    <output_type>sensor_msgs/Range</output_type>
+                    <output_type>sensor_msgs/LaserScan</output_type>
+                    <radiation_type>infrared</radiation_type>
                     <frame_name>${name}_link</frame_name>
                 </plugin>
             </sensor>

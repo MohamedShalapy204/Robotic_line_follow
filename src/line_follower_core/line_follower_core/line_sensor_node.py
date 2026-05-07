@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Range
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32
 
 class LineSensorNode(Node):
@@ -19,36 +19,41 @@ class LineSensorNode(Node):
         
         # Current sensor values
         self.sensor_values = [0.0] * len(self.sensor_topics)
+        self.last_error = 0.0
         
-        # Threshold for detecting the line
-        # The line is 1mm high, ground is 0mm. 
-        # Sensor is at ~43mm from ground.
-        # Line detection distance should be ~42mm.
-        self.detection_threshold = 0.0425
+        # Threshold for detecting the line (0.033 is on line, 0.043 is on ground)
+        self.detection_threshold = 0.038
         
-        # Create subscribers
+        # Create subscribers using a callback factory
         self.subs = []
         for i, topic in enumerate(self.sensor_topics):
+            callback = self.make_callback(i)
             sub = self.create_subscription(
-                Range,
+                LaserScan,
                 topic,
-                lambda msg, idx=i: self.sensor_callback(msg, idx),
+                callback,
                 10
             )
             self.subs.append(sub)
             
         self.publisher_ = self.create_publisher(Float32, "line_error", 10)
-        self.timer = self.create_timer(0.05, self.timer_callback) # 20Hz
+        self.timer = self.create_timer(0.02, self.timer_callback) # 50Hz
         
-        self.get_logger().info("Line Sensor Node (Phase 3) started.")
+        self.get_logger().info("Line Sensor Node (Phase 3 - LaserScan) started.")
+
+    def make_callback(self, idx):
+        def callback(msg):
+            self.sensor_callback(msg, idx)
+        return callback
 
     def sensor_callback(self, msg, idx):
-        # In Gazebo, a ray sensor returns the range.
-        # If range < threshold, we assume it's on the line.
-        if msg.range < self.detection_threshold:
-            self.sensor_values[idx] = 1.0
-        else:
-            self.sensor_values[idx] = 0.0
+        # LaserScan.ranges is a list. For a single ray, we use index 0.
+        if len(msg.ranges) > 0:
+            dist = msg.ranges[0]
+            if dist < self.detection_threshold:
+                self.sensor_values[idx] = 1.0
+            else:
+                self.sensor_values[idx] = 0.0
 
     def timer_callback(self):
         msg = Float32()
@@ -58,12 +63,16 @@ class LineSensorNode(Node):
         if total_on_line > 0:
             # Weighted average for error
             error = sum(val * weight for val, weight in zip(self.sensor_values, self.weights)) / total_on_line
+            self.last_error = error
             msg.data = error
             self.get_logger().info(f"Line detected! Active sensors: {total_on_line} | Error: {error:.2f}")
         else:
-            msg.data = 0.0
+            # If no line is detected, use 50% of the last error to smoothly recover
+            # rather than jumping straight to zero.
+            self.last_error *= 0.5
+            msg.data = self.last_error
             # Use throttle to avoid flooding logs
-            self.get_logger().warn("No line detected!", throttle_duration_sec=2.0)
+            self.get_logger().warn("No line detected! Using recovery error.", throttle_duration_sec=2.0)
             
         self.publisher_.publish(msg)
 

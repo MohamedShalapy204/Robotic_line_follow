@@ -21,10 +21,10 @@ class LineControllerNode(Node):
         self.publisher_ = self.create_publisher(Twist, "cmd_vel", 10)
         
         # PID Parameters (Initial Guesses)
-        self.declare_parameter("kp", 0.8)
+        self.declare_parameter("kp", 1.2)
         self.declare_parameter("ki", 0.0)
-        self.declare_parameter("kd", 0.05)
-        self.declare_parameter("base_speed", 0.15)
+        self.declare_parameter("kd", 0.1)
+        self.declare_parameter("base_speed", 0.3)
         
         self.kp = self.get_parameter("kp").value
         self.ki = self.get_parameter("ki").value
@@ -47,17 +47,21 @@ class LineControllerNode(Node):
         
         angular_z = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
         
+        # Cap angular velocity
+        max_angular = 0.8
+        angular_z = max(min(angular_z, max_angular), -max_angular)
+        
         twist = Twist()
-        # Adaptive speed: slow down if error is large
-        if abs(error) > 1.0:
-            twist.linear.x = self.base_speed * 0.4
+        # Adaptive speed
+        if abs(error) > 0.5:
+            twist.linear.x = self.base_speed * 0.5
         else:
             twist.linear.x = self.base_speed
             
         twist.angular.z = angular_z
         
         self.publisher_.publish(twist)
-        self.get_logger().info(f"Error: {error:.2f} | Linear: {twist.linear.x:.2f} | Angular: {twist.angular.z:.2f}")
+        self.get_logger().info(f"Err: {error:.1f} | L: {twist.linear.x:.2f} | A: {twist.angular.z:.2f}")
         self.prev_error = error
 
 def main(args=None):
