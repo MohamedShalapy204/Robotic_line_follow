@@ -99,9 +99,14 @@ class LineControllerNode(Node):
         
         twist = Twist()
         # Adaptive speed
-        if abs(error) > 0.5:
+        if abs(error) > 2.5:
+            # Drastic slowdown for extreme recovery (line loss / hard turn)
             twist.linear.x = self.base_speed * 0.5
+        elif abs(error) > 1.5:
+            # Significant slowdown for sharp turns
+            twist.linear.x = self.base_speed * 0.7
         else:
+            # Maintain full speed when perfectly on-line
             twist.linear.x = self.base_speed
             
         twist.angular.z = angular_z

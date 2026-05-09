@@ -65,14 +65,15 @@ class LineSensorNode(Node):
             error = sum(val * weight for val, weight in zip(self.sensor_values, self.weights)) / total_on_line
             self.last_error = error
             msg.data = error
-            # self.get_logger().info(f"Line detected! Active sensors: {total_on_line} | Error: {error:.2f}")
         else:
-            # If no line is detected, use 50% of the last error to smoothly recover
-            # rather than jumping straight to zero.
-            self.last_error *= 0.5
-            msg.data = self.last_error
-            # Use throttle to avoid flooding logs
-            self.get_logger().warn("No line detected! Using recovery error.", throttle_duration_sec=2.0)
+            # If no line is detected, publish an extreme error based on last known direction.
+            # If the robot was straight (error=0), keep it straight.
+            if self.last_error > 0:
+                msg.data = 5.0
+            elif self.last_error < 0:
+                msg.data = -5.0
+            else:
+                msg.data = 0.0
             
         self.publisher_.publish(msg)
 
