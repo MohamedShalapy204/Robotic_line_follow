@@ -176,7 +176,7 @@
         <joint name="${name}_joint" type="fixed">
             <parent link="chassis"/>
             <child link="${name}_link"/>
-            <origin xyz="${x} ${y} 0.01" rpy="0 ${pi/2} 0"/>
+            <origin xyz="${x} ${y} -0.013" rpy="0 ${pi/2} 0"/>
         </joint>
         <link name="${name}_link">
             <visual>
@@ -201,9 +201,9 @@
                         </horizontal>
                     </scan>
                     <range>
-                        <min>0.01</min>
+                        <min>0.005</min>
                         <max>0.05</max>
-                        <resolution>0.01</resolution>
+                        <resolution>0.001</resolution>
                     </range>
                 </ray>
                 <plugin name="${name}_plugin" filename="libgazebo_ros_ray_sensor.so">
@@ -218,11 +218,11 @@
         </gazebo>
     </xacro:macro>
 
-    <xacro:line_sensor name="sensor_l2" x="0.18" y="0.04"/>
-    <xacro:line_sensor name="sensor_l1" x="0.18" y="0.02"/>
-    <xacro:line_sensor name="sensor_mid" x="0.18" y="0.0"/>
-    <xacro:line_sensor name="sensor_r1" x="0.18" y="-0.02"/>
-    <xacro:line_sensor name="sensor_r2" x="0.18" y="-0.04"/>
+    <xacro:line_sensor name="sensor_l2" x="0.15" y="0.04"/>
+    <xacro:line_sensor name="sensor_l1" x="0.15" y="0.02"/>
+    <xacro:line_sensor name="sensor_mid" x="0.15" y="0.0"/>
+    <xacro:line_sensor name="sensor_r1" x="0.15" y="-0.02"/>
+    <xacro:line_sensor name="sensor_r2" x="0.15" y="-0.04"/>
 
 </robot>
 

@@ -21,8 +21,8 @@ class LineSensorNode(Node):
         self.sensor_values = [0.0] * len(self.sensor_topics)
         self.last_error = 0.0
         
-        # Threshold for detecting the line (0.033 is on line, 0.043 is on ground)
-        self.detection_threshold = 0.038
+        # Threshold for detecting the line (0.010 is on line, 0.020 is on ground)
+        self.detection_threshold = 0.015
         
         # Create subscribers using a callback factory
         self.subs = []

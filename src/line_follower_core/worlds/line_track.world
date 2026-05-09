@@ -8,12 +8,13 @@
       <uri>model://ground_plane</uri>
     </include>
 
-    <!-- Track segments -->
+    <!-- Track segments: 10mm height, but wheels pass through them like ghosts -->
+    
     <!-- Front Straight -->
     <model name="track_front">
       <static>true</static>
       <link name="link">
-        <pose>0.5 0 0.001 0 0 0</pose>
+        <pose>0.5 0 0.005 0 0 0</pose>
         <visual name="visual">
           <geometry>
             <box>
@@ -25,6 +26,18 @@
             <diffuse>0 0 0 1</diffuse>
           </material>
         </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.0 0.02 0.01</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_without_contact>true</collide_without_contact>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 
@@ -32,7 +45,7 @@
     <model name="track_back">
       <static>true</static>
       <link name="link">
-        <pose>0.5 1.0 0.001 0 0 0</pose>
+        <pose>0.5 1.0 0.005 0 0 0</pose>
         <visual name="visual">
           <geometry>
             <box>
@@ -44,6 +57,18 @@
             <diffuse>0 0 0 1</diffuse>
           </material>
         </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.0 0.02 0.01</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_without_contact>true</collide_without_contact>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 
@@ -51,11 +76,11 @@
     <model name="track_left">
       <static>true</static>
       <link name="link">
-        <pose>0 0.5 0.001 0 0 0</pose>
+        <pose>0 0.5 0.005 0 0 0</pose>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.02 1.0 0.001</size>
+              <size>0.02 1.0 0.01</size>
             </box>
           </geometry>
           <material>
@@ -63,6 +88,18 @@
             <diffuse>0 0 0 1</diffuse>
           </material>
         </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.02 1.0 0.01</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_without_contact>true</collide_without_contact>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 
@@ -70,11 +107,11 @@
     <model name="track_right">
       <static>true</static>
       <link name="link">
-        <pose>1.0 0.5 0.001 0 0 0</pose>
+        <pose>1.0 0.5 0.005 0 0 0</pose>
         <visual name="visual">
           <geometry>
             <box>
-              <size>0.02 1.0 0.001</size>
+              <size>0.02 1.0 0.01</size>
             </box>
           </geometry>
           <material>
@@ -82,6 +119,18 @@
             <diffuse>0 0 0 1</diffuse>
           </material>
         </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.02 1.0 0.01</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_without_contact>true</collide_without_contact>
+            </contact>
+          </surface>
+        </collision>
       </link>
     </model>
 

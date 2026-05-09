@@ -44,6 +44,37 @@
                 <h2>Telemetry Data</h2>
                 <div class="telemetry-grid">
                     <div class="data-card">
+                        <h3>Line Sensor Array</h3>
+                        <div class="sensor-array">
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-l2-ui">L2</div>
+                                <span class="sensor-value" id="val-l2">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-l1-ui">L1</div>
+                                <span class="sensor-value" id="val-l1">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-mid-ui">MID</div>
+                                <span class="sensor-value" id="val-mid">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-r1-ui">R1</div>
+                                <span class="sensor-value" id="val-r1">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-r2-ui">R2</div>
+                                <span class="sensor-value" id="val-r2">0.00</span>
+                            </div>
+                        </div>
+                        <p class="sensor-legend">
+                            Expected: Ground ≈ <span class="ref-val">0.020</span> | Line ≈ <span class="ref-val">0.010</span><br>
+                            Threshold: <span id="threshold-display">0.015</span>m | 
+                            Highlight = Active (< Threshold)
+                        </p>
+                    </div>
+
+                    <div class="data-card">
                         <h3>Line Error</h3>
                         <div class="value-display">
                             <span id="line-error-value">0.00</span>

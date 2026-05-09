@@ -63,6 +63,7 @@ connectBtn.addEventListener('click', () => {
 
 // ROS Topics (will be initialized after connection)
 let lineErrorSub, odomSub, cmdVelPub;
+let sensorSubs = {};
 
 function subscribeToTopics() {
     lineErrorSub = new ROSLIB.Topic({
@@ -81,6 +82,34 @@ function subscribeToTopics() {
         ros: ros,
         name: '/cmd_vel',
         messageType: 'geometry_msgs/Twist'
+    });
+
+    // Sensor Topics
+    const sensorNames = ['l2', 'l1', 'mid', 'r1', 'r2'];
+    const threshold = 0.015;
+    document.getElementById('threshold-display').innerText = threshold.toFixed(3);
+
+    sensorNames.forEach(name => {
+        const topicName = `/sensor_${name}`;
+        sensorSubs[name] = new ROSLIB.Topic({
+            ros: ros,
+            name: topicName,
+            messageType: 'sensor_msgs/LaserScan'
+        });
+
+        sensorSubs[name].subscribe((message) => {
+            const dist = message.ranges[0];
+            const indicator = document.getElementById(`sensor-${name}-ui`);
+            const valueSpan = document.getElementById(`val-${name}`);
+            
+            valueSpan.innerText = dist.toFixed(3);
+            
+            if (dist < threshold) {
+                indicator.classList.add('active');
+            } else {
+                indicator.classList.remove('active');
+            }
+        });
     });
 
     // Telemetry Subscriptions
