@@ -39,7 +39,7 @@ class MotorDriverNode(Node):
         # In simulation, the Gazebo plugin handles the actual movement from cmd_vel.
         # This node acts as a monitor/pre-processor for hardware parity.
         # We log the "target" wheel speeds that would be sent to motors.
-        self.get_logger().info(f"Target Wheel Speeds: L={w_l:.2f} rad/s, R={w_r:.2f} rad/s")
+        # self.get_logger().info(f"Target Wheel Speeds: L={w_l:.2f} rad/s, R={w_r:.2f} rad/s")
 
 def main(args=None):
     rclpy.init(args=args)

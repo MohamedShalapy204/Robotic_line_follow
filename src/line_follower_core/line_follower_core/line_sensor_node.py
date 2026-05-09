@@ -65,7 +65,7 @@ class LineSensorNode(Node):
             error = sum(val * weight for val, weight in zip(self.sensor_values, self.weights)) / total_on_line
             self.last_error = error
             msg.data = error
-            self.get_logger().info(f"Line detected! Active sensors: {total_on_line} | Error: {error:.2f}")
+            # self.get_logger().info(f"Line detected! Active sensors: {total_on_line} | Error: {error:.2f}")
         else:
             # If no line is detected, use 50% of the last error to smoothly recover
             # rather than jumping straight to zero.

@@ -62,7 +62,7 @@ connectBtn.addEventListener('click', () => {
 });
 
 // ROS Topics (will be initialized after connection)
-let lineErrorSub, odomSub, cmdVelPub, missionControlPub;
+let lineErrorSub, odomSub, cmdVelPub, missionControlPub, tuningPub;
 let sensorSubs = {};
 
 function subscribeToTopics() {
@@ -87,6 +87,12 @@ function subscribeToTopics() {
     missionControlPub = new ROSLIB.Topic({
         ros: ros,
         name: '/mission_control',
+        messageType: 'std_msgs/String'
+    });
+
+    tuningPub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/tuning_params',
         messageType: 'std_msgs/String'
     });
 
@@ -233,4 +239,31 @@ document.getElementById('btn-estop').addEventListener('click', () => {
 
 document.getElementById('btn-calibrate').addEventListener('click', () => {
     alert('Sensor Calibration Triggered');
+});
+
+// Tuning Apply Button
+document.getElementById('btn-apply-tuning').addEventListener('click', () => {
+    if (!tuningPub) {
+        alert('Not connected to ROS!');
+        return;
+    }
+    
+    const params = {
+        base_speed: parseFloat(document.getElementById('tune-speed').value),
+        kp: parseFloat(document.getElementById('tune-kp').value),
+        ki: parseFloat(document.getElementById('tune-ki').value),
+        kd: parseFloat(document.getElementById('tune-kd').value)
+    };
+    
+    tuningPub.publish(new ROSLIB.Message({ data: JSON.stringify(params) }));
+    
+    // Quick visual feedback on button
+    const btn = document.getElementById('btn-apply-tuning');
+    const originalText = btn.innerText;
+    btn.innerText = 'Applied!';
+    btn.style.background = 'var(--accent-green)';
+    setTimeout(() => {
+        btn.innerText = originalText;
+        btn.style.background = '';
+    }, 1000);
 });

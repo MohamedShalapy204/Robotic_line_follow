@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+import json
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, String
 
@@ -21,6 +22,13 @@ class LineControllerNode(Node):
             String,
             "mission_control",
             self.mission_callback,
+            10
+        )
+        
+        self.tuning_sub = self.create_subscription(
+            String,
+            "tuning_params",
+            self.tuning_callback,
             10
         )
         
@@ -58,12 +66,26 @@ class LineControllerNode(Node):
             twist = Twist()
             self.publisher_.publish(twist)
 
+    def tuning_callback(self, msg):
+        try:
+            params = json.loads(msg.data)
+            if 'base_speed' in params:
+                self.base_speed = float(params['base_speed'])
+            if 'kp' in params:
+                self.kp = float(params['kp'])
+            if 'ki' in params:
+                self.ki = float(params['ki'])
+            if 'kd' in params:
+                self.kd = float(params['kd'])
+            self.get_logger().info(f"Tuning Updated: Speed={self.base_speed}, Kp={self.kp}, Ki={self.ki}, Kd={self.kd}")
+        except Exception as e:
+            self.get_logger().error(f"Failed to parse tuning parameters: {e}")
+
     def error_callback(self, msg):
         if not self.is_active:
             return
             
         error = msg.data
-        self.base_speed = self.get_parameter("base_speed").value
         
         # PID Logic
         self.integral += error
@@ -85,7 +107,7 @@ class LineControllerNode(Node):
         twist.angular.z = angular_z
         
         self.publisher_.publish(twist)
-        self.get_logger().info(f"Err: {error:.1f} | L: {twist.linear.x:.2f} | A: {twist.angular.z:.2f}")
+        # self.get_logger().info(f"Err: {error:.1f} | L: {twist.linear.x:.2f} | A: {twist.angular.z:.2f}")
         self.prev_error = error
 
 def main(args=None):
