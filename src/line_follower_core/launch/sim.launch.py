@@ -62,13 +62,13 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}]
     )
 
-    # line_controller_node is disabled so the robot doesn't auto-move
-    # line_controller_node = Node(
-    #     package=pkg_name,
-    #     executable='line_controller_node.py',
-    #     output='screen',
-    #     parameters=[{'use_sim_time': True, 'kp': 1.0, 'base_speed': 0.1}]
-    # )
+    # line_controller_node is now enabled and waits for UI signal
+    line_controller_node = Node(
+        package=pkg_name,
+        executable='line_controller_node.py',
+        output='screen',
+        parameters=[{'use_sim_time': True, 'kp': 1.0, 'base_speed': 0.1}]
+    )
 
     motor_driver_node = Node(
         package=pkg_name,
@@ -102,7 +102,7 @@ def generate_launch_description():
         spawn_entity,
         line_sensor_node,
         encoder_odometry_node,
-        # line_controller_node, # Disabled
+        line_controller_node,
         motor_driver_node,
         rosbridge_node,
         start_gui_server,

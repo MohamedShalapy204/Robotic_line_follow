@@ -62,7 +62,7 @@ connectBtn.addEventListener('click', () => {
 });
 
 // ROS Topics (will be initialized after connection)
-let lineErrorSub, odomSub, cmdVelPub;
+let lineErrorSub, odomSub, cmdVelPub, missionControlPub;
 let sensorSubs = {};
 
 function subscribeToTopics() {
@@ -82,6 +82,12 @@ function subscribeToTopics() {
         ros: ros,
         name: '/cmd_vel',
         messageType: 'geometry_msgs/Twist'
+    });
+
+    missionControlPub = new ROSLIB.Topic({
+        ros: ros,
+        name: '/mission_control',
+        messageType: 'std_msgs/String'
     });
 
     // Sensor Topics
@@ -117,8 +123,8 @@ function subscribeToTopics() {
         const error = message.data;
         lineErrorVal.innerText = error.toFixed(2);
         
-        // Map -1.0 to 1.0 to 0% to 100%
-        const percentage = ((error + 1.0) / 2.0) * 100;
+        // Map -2.0 to 2.0 to 0% to 100%
+        const percentage = ((error + 2.0) / 4.0) * 100;
         lineErrorBar.style.width = `${Math.max(0, Math.min(100, percentage))}%`;
     });
 
@@ -138,6 +144,9 @@ manualToggle.addEventListener('change', (e) => {
         joystickContainer.classList.add('active');
         document.querySelectorAll('.d-btn').forEach(btn => btn.disabled = false);
         startPublishingCmdVel();
+        if (missionControlPub) {
+            missionControlPub.publish(new ROSLIB.Message({ data: 'stop' }));
+        }
     } else {
         joystickContainer.classList.remove('active');
         document.querySelectorAll('.d-btn').forEach(btn => btn.disabled = true);
@@ -205,7 +214,9 @@ window.addEventListener('keyup', (e) => {
 
 // Mission Control Buttons
 document.getElementById('btn-start-auto').addEventListener('click', () => {
-    alert('Autonomous Mode Triggered');
+    if (missionControlPub) {
+        missionControlPub.publish(new ROSLIB.Message({ data: 'start' }));
+    }
 });
 
 document.getElementById('btn-estop').addEventListener('click', () => {
@@ -215,7 +226,9 @@ document.getElementById('btn-estop').addEventListener('click', () => {
     document.querySelectorAll('.d-btn').forEach(btn => btn.disabled = true);
     stopPublishingCmdVel();
     publishTwist(0, 0);
-    alert('EMERGENCY STOP ACTIVATED');
+    if (missionControlPub) {
+        missionControlPub.publish(new ROSLIB.Message({ data: 'stop' }));
+    }
 });
 
 document.getElementById('btn-calibrate').addEventListener('click', () => {

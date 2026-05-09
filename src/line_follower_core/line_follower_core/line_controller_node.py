@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, String
 
 class LineControllerNode(Node):
     def __init__(self):
@@ -16,6 +16,15 @@ class LineControllerNode(Node):
             self.error_callback,
             10
         )
+        
+        self.mission_sub = self.create_subscription(
+            String,
+            "mission_control",
+            self.mission_callback,
+            10
+        )
+        
+        self.is_active = False
         
         # Publishers
         self.publisher_ = self.create_publisher(Twist, "cmd_vel", 10)
@@ -37,7 +46,22 @@ class LineControllerNode(Node):
         
         self.get_logger().info("Line Controller Node (Phase 3) started.")
 
+    def mission_callback(self, msg):
+        command = msg.data.lower()
+        if command == "start":
+            self.is_active = True
+            self.get_logger().info("Autonomous Mode: ACTIVATED")
+        elif command == "stop":
+            self.is_active = False
+            self.get_logger().info("Autonomous Mode: STOPPED")
+            # Publish 0 velocity immediately
+            twist = Twist()
+            self.publisher_.publish(twist)
+
     def error_callback(self, msg):
+        if not self.is_active:
+            return
+            
         error = msg.data
         self.base_speed = self.get_parameter("base_speed").value
         
