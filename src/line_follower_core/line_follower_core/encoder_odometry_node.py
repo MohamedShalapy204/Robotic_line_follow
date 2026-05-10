@@ -26,6 +26,9 @@ class EncoderOdometryNode(Node):
         self.first_run = True
         self.last_time = None
         
+        # Logging flags
+        self.logged_joint_names = False
+        
         # Subscribers
         self.subscription = self.create_subscription(
             JointState,
@@ -47,6 +50,9 @@ class EncoderOdometryNode(Node):
             l_idx = msg.name.index("left_wheel_joint")
             r_idx = msg.name.index("right_wheel_joint")
         except ValueError:
+            if not self.logged_joint_names:
+                self.get_logger().warn(f"Waiting for wheel joints. Available: {msg.name}")
+                self.logged_joint_names = True
             return
 
         curr_l_pos = msg.position[l_idx]
@@ -88,10 +94,14 @@ class EncoderOdometryNode(Node):
         angular_vel = 0.0
         
         if self.last_time is not None:
-            dt = (now_time - self.last_time).nanoseconds / 1e9
-            if dt > 0:
+            dt_ns = (now_time - self.last_time).nanoseconds
+            if dt_ns > 0:
+                dt = dt_ns / 1e9
                 linear_vel = d_center / dt
                 angular_vel = d_theta / dt
+            else:
+                # If dt is 0 (double callback in same nanosecond), don't update velocity yet
+                return 
         
         self.last_time = now_time
 

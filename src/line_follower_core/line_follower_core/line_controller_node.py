@@ -93,26 +93,12 @@ class LineControllerNode(Node):
         
         angular_z = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
         
-        # Cap angular velocity
-        max_angular = 0.8
-        angular_z = max(min(angular_z, max_angular), -max_angular)
-        
         twist = Twist()
-        # Adaptive speed
-        if abs(error) > 2.5:
-            # Drastic slowdown for extreme recovery (line loss / hard turn)
-            twist.linear.x = self.base_speed * 0.5
-        elif abs(error) > 1.5:
-            # Significant slowdown for sharp turns
-            twist.linear.x = self.base_speed * 0.7
-        else:
-            # Maintain full speed when perfectly on-line
-            twist.linear.x = self.base_speed
+        twist.linear.x = self.base_speed
             
         twist.angular.z = angular_z
         
         self.publisher_.publish(twist)
-        # self.get_logger().info(f"Err: {error:.1f} | L: {twist.linear.x:.2f} | A: {twist.angular.z:.2f}")
         self.prev_error = error
 
 def main(args=None):

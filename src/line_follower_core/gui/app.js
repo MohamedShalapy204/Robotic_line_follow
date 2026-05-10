@@ -138,6 +138,9 @@ function subscribeToTopics() {
         const linear = message.twist.twist.linear.x;
         const angular = message.twist.twist.angular.z;
         
+        // Debugging
+        // console.log(`Odom: Linear=${linear.toFixed(2)}, Angular=${angular.toFixed(2)}`);
+        
         linearSpeedVal.innerText = linear.toFixed(2);
         angularSpeedVal.innerText = angular.toFixed(2);
     });

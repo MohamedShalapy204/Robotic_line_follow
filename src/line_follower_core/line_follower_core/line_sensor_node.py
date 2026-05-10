@@ -69,9 +69,9 @@ class LineSensorNode(Node):
             # If no line is detected, publish an extreme error based on last known direction.
             # If the robot was straight (error=0), keep it straight.
             if self.last_error > 0:
-                msg.data = 5.0
+                msg.data = 3.0
             elif self.last_error < 0:
-                msg.data = -5.0
+                msg.data = -3.0
             else:
                 msg.data = 0.0
             
