@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line Follower Dashboard</title>
+    <!-- ROS Web Connectivity -->
+    <script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-panel header">
+            <div class="logo">
+                <div class="status-indicator" id="connection-status"></div>
+                <h1>Robotic Line Follower</h1>
+            </div>
+            <div class="connection-info">
+                <span id="ros-status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Connection Panel -->
+        <section class="glass-panel connection-panel">
+            <div class="connection-controls">
+                <div class="input-group">
+                    <label for="ros-url">WebSocket URL</label>
+                    <input type="text" id="ros-url" value="ws://localhost:9090" placeholder="ws://localhost:9090">
+                </div>
+                <button id="connect-btn" class="btn btn-primary">Connect to ROS</button>
+            </div>
+        </section>
+
+        <main class="dashboard-grid">
+            <!-- Telemetry Panel -->
+            <section class="glass-panel telemetry-panel">
+                <h2>Telemetry Data</h2>
+                <div class="telemetry-grid">
+                    <div class="data-card">
+                        <h3>Line Sensor Array</h3>
+                        <div class="sensor-array">
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-l2-ui">L2</div>
+                                <span class="sensor-value" id="val-l2">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-l1-ui">L1</div>
+                                <span class="sensor-value" id="val-l1">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-mid-ui">MID</div>
+                                <span class="sensor-value" id="val-mid">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-r1-ui">R1</div>
+                                <span class="sensor-value" id="val-r1">0.00</span>
+                            </div>
+                            <div class="sensor-item">
+                                <div class="sensor-indicator" id="sensor-r2-ui">R2</div>
+                                <span class="sensor-value" id="val-r2">0.00</span>
+                            </div>
+                        </div>
+                        <p class="sensor-legend">
+                            Expected: Ground ≈ <span class="ref-val">0.020</span> | Line ≈ <span class="ref-val">0.010</span><br>
+                            Threshold: <span id="threshold-display">0.015</span>m | 
+                            Highlight = Active (< Threshold)
+                        </p>
+                    </div>
+
+                    <div class="data-card">
+                        <h3>Line Error</h3>
+                        <div class="value-display">
+                            <span id="line-error-value">0.00</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="line-error-bar" style="width: 50%;"></div>
+                        </div>
+                        <div class="range-labels">
+                            <span>-2.0</span>
+                            <span>0</span>
+                            <span>2.0</span>
+                        </div>
+                    </div>
+
+                    <div class="data-card">
+                        <h3>Robot Speed</h3>
+                        <div class="value-display speed-display">
+                            <div class="speed-item">
+                                <span class="label">Linear:</span>
+                                <span id="linear-speed">0.00</span> <span class="unit">m/s</span>
+                            </div>
+                            <div class="speed-item">
+                                <span class="label">Angular:</span>
+                                <span id="angular-speed">0.00</span> <span class="unit">rad/s</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Control Panel -->
+            <section class="glass-panel control-panel">
+                <h2>Mission Control</h2>
+                <div class="controls-grid">
+                    <button class="btn btn-primary" id="btn-start-auto">Start Autonomous Lap</button>
+                    <button class="btn btn-warning" id="btn-calibrate">Calibrate Sensors</button>
+                    <button class="btn btn-danger" id="btn-estop">EMERGENCY STOP</button>
+                </div>
+
+                <div class="tuning-section">
+                    <h3>Parameter Tuning</h3>
+                    <div class="tuning-grid">
+                        <div class="input-group">
+                            <label for="tune-speed">Base Speed (m/s)</label>
+                            <input type="number" id="tune-speed" value="0.3" step="0.05" min="0.0">
+                        </div>
+                        <div class="input-group">
+                            <label for="tune-kp">Kp</label>
+                            <input type="number" id="tune-kp" value="1.2" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label for="tune-ki">Ki</label>
+                            <input type="number" id="tune-ki" value="0.0" step="0.01">
+                        </div>
+                        <div class="input-group">
+                            <label for="tune-kd">Kd</label>
+                            <input type="number" id="tune-kd" value="0.1" step="0.05">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="btn-apply-tuning" style="margin-top: 10px; width: 100%;">Apply Parameters</button>
+                </div>
+
+                <div class="manual-control-section">
+                    <div class="header-toggle">
+                        <h3>Manual Drive Mode</h3>
+                        <label class="switch">
+                            <input type="checkbox" id="manual-mode-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="d-pad" id="joystick-container">
+                        <button class="d-btn up" id="btn-up" disabled>W</button>
+                        <button class="d-btn left" id="btn-left" disabled>A</button>
+                        <button class="d-btn down" id="btn-down" disabled>S</button>
+                        <button class="d-btn right" id="btn-right" disabled>D</button>
+                    </div>
+                    <p class="instruction">Enable Manual Mode to use WASD keys or on-screen buttons to publish to /cmd_vel.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
