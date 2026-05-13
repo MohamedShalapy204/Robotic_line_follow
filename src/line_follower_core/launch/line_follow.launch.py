@@ -1,51 +1,22 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import ExecuteProcess
 from launch_ros.actions import Node
-import xacro
 
 def generate_launch_description():
     # Package info
     pkg_name = 'line_follower_core'
     pkg_path = get_package_share_directory(pkg_name)
 
-    # Simulation specific paths
-    xacro_file = os.path.join(pkg_path, 'urdf', 'robot.urdf.xacro')
-    robot_description_raw = xacro.process_file(xacro_file).toxml()
-    world_file = os.path.join(pkg_path, 'worlds', 'line_track.world')
-    gazebo_ros_path = get_package_share_directory('gazebo_ros')
-    gazebo_launch = os.path.join(gazebo_ros_path, 'launch', 'gazebo.launch.py')
-
-    # --- SIMULATION ONLY NODES ---
-    robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        output='screen',
-        parameters=[{'robot_description': robot_description_raw, 'use_sim_time': True}]
-    )
-
-    spawn_entity = Node(
-        package='gazebo_ros',
-        executable='spawn_entity.py',
-        arguments=['-topic', 'robot_description', '-entity', 'line_follower_robot', '-x', '0', '-y', '0', '-z', '0.1'],
-        output='screen'
-    )
-
-    gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(gazebo_launch),
-        launch_arguments={'world': world_file}.items()
-    )
-
-    # --- UNIVERSAL CORE NODES (SIMULATION MODE) ---
+    # --- UNIVERSAL CORE NODES (HARDWARE MODE) ---
     line_sensor_node = Node(
         package=pkg_name,
         executable='line_sensor_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': True,
-            'hardware_mode': False
+            'use_sim_time': False,
+            'hardware_mode': True
         }]
     )
 
@@ -54,8 +25,8 @@ def generate_launch_description():
         executable='encoder_odometry_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': True,
-            'hardware_mode': False
+            'use_sim_time': False,
+            'hardware_mode': True
         }]
     )
 
@@ -64,7 +35,7 @@ def generate_launch_description():
         executable='line_controller_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': True,
+            'use_sim_time': False,
             'kp': 1.0, 
             'base_speed': 0.1
         }]
@@ -75,8 +46,8 @@ def generate_launch_description():
         executable='motor_driver_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': True,
-            'hardware_mode': False
+            'use_sim_time': False,
+            'hardware_mode': True
         }]
     )
 
@@ -85,14 +56,14 @@ def generate_launch_description():
         package='rosbridge_server',
         executable='rosbridge_websocket',
         output='screen',
-        parameters=[{'use_sim_time': True}]
+        parameters=[{'use_sim_time': False}]
     )
 
     rosapi_node = Node(
         package='rosapi',
         executable='rosapi_node',
         output='screen',
-        parameters=[{'use_sim_time': True}]
+        parameters=[{'use_sim_time': False}]
     )
 
     gui_path = os.path.join(pkg_path, 'gui')
@@ -108,9 +79,6 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        gazebo,
-        robot_state_publisher,
-        spawn_entity,
         line_sensor_node,
         encoder_odometry_node,
         line_controller_node,

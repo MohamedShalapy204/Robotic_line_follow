@@ -30,19 +30,19 @@ This implementation plan outlines a step-by-step approach to building the ROS 2 
 * **Task 3.3 - `line_controller_node`:** Implement a Proportional (or PID) controller that subscribes to `/line_error` and publishes velocity commands (`geometry_msgs/Twist`) to `/cmd_vel`.
 * **Task 3.4 - Simulation Tuning:** Tune the controller gains in the Gazebo simulation until the digital twin completes two consecutive laps autonomously.
 
-## Phase 4: Hardware Integration & ESP32 Firmware
-**Goal:** Interface the physical hardware components with the ESP32 microcontroller.
-* **Task 4.1 - Micro-ROS Setup:** Set up `micro-ROS` for ESP32 (using the ESP-IDF or Arduino component). Configure the transport to use Wi-Fi (UDP) for wireless data transmission.
-* **Task 4.2 - Sensor Firmware:** Write routines to read the 5-IR sensor array and wheel encoders (using high-resolution ESP32 timers/interrupts). Note: Ensure 3.3V logic compatibility for all sensor inputs.
-* **Task 4.3 - Actuator Firmware:** Interface the ESP32 with the L298N motor driver using MCPWM or LEDC (PWM) peripherals. Define PWM duty cycle limits in software to prevent motor stall.
-* **Task 4.4 - Communication Bridge:** Configure the ESP32 to publish `/line_error` and `/odom` wirelessly to the ROS 2 host at 20 Hz, and subscribe to `/cmd_vel` directly.
-* **Task 4.5 - Safety & Indicators:** Implement an observable hardware emergency-stop (E-stop) button. Add an indicator (built-in LED or Buzzer) to signal lap completion.
+## Phase 4: Hardware Integration & WiFi Telemetry
+**Goal:** Interface the physical hardware components with the host laptop via Wi-Fi.
+* **Task 4.1 - Micro-ROS WiFi Setup:** Set up `micro-ROS` on ESP32 configured for Wi-Fi (UDP) transport.
+* **Task 4.2 - Sensor Telemetry Firmware:** Implement raw IR sensor data (5 topics) and encoder data streaming from ESP32 to host at 20Hz+.
+* **Task 4.3 - Actuator Interface Firmware:** Configure ESP32 to subscribe to motor speed/PWM topics and drive DC motors via L298N.
+* **Task 4.4 - Safety Failsafe:** Implement a software timeout on the ESP32 that stops motors if no `/cmd_vel` message is received for > 500ms.
+* **Task 4.5 - Unified Host Launch:** Create `line_follow.launch.py` on the laptop to launch the micro-ROS agent, `line_sensor_node`, `line_controller_node`, `encoder_odometry_node`, and `motor_driver_node`. Update `motor_driver_node` to publish motor commands to the ESP32.
 
-## Phase 5: Physical Robot ROS 2 Integration
-**Goal:** Complete the integration between the physical Arduino and the ROS 2 host computer (e.g., Raspberry Pi or Laptop).
-* **Task 5.1 - Node Adaptation:** Adapt the host-side nodes to connect to the ESP32 via the Micro-ROS agent. Ensure the laptop/Pi is on the same Wi-Fi network as the ESP32.
-* **Task 5.2 - Calibration Routine:** Implement the required line calibration script to distinguish the dark line from the light ground based on ambient lighting.
-* **Task 5.3 - Hardware Launch File:** Create `line_follow.launch.py` to launch all physical nodes, micro-ROS agent, and set PID controller gains via ROS parameters.
+## Phase 5: GUI Dashboard & Real-time Monitoring
+**Goal:** Enhance the web interface to visualize all hardware telemetry and control the robot.
+* **Task 5.1 - GUI Sensor Mapping:** Update `turtle_web_control` to display 5 IR sensor states and `/line_error`.
+* **Task 5.2 - Odom Visualization:** Integrate real-time linear/angular velocity displays from `/odom` into the dashboard.
+* **Task 5.3 - Calibration UI:** Add remote calibration triggers to the GUI.
 
 ## Phase 6: Physical Testing & PID Tuning
 **Goal:** Achieve stable, autonomous line-following in the real world.
