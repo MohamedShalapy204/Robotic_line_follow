@@ -9,6 +9,7 @@ const linearSpeedVal = document.getElementById('linear-speed');
 const angularSpeedVal = document.getElementById('angular-speed');
 const manualToggle = document.getElementById('manual-mode-toggle');
 const joystickContainer = document.getElementById('joystick-container');
+const telemetryStatus = document.getElementById('telemetry-status');
 
 // State Variables
 let isManualMode = false;
@@ -34,6 +35,7 @@ ros.on('connection', () => {
     
     // Subscribe/Advertise after connection
     subscribeToTopics();
+    startSystemMonitor();
 });
 
 ros.on('error', (error) => {
@@ -61,8 +63,9 @@ connectBtn.addEventListener('click', () => {
     ros.connect(url);
 });
 
-// ROS Topics (will be initialized after connection)
+// ROS Topics
 let lineErrorSub, odomSub, cmdVelPub, missionControlPub, tuningPub;
+let encLSub, encRSub, pwmLSub, pwmRSub;
 let sensorSubs = {};
 
 function subscribeToTopics() {
@@ -99,7 +102,6 @@ function subscribeToTopics() {
     // Sensor Topics
     const sensorNames = ['l2', 'l1', 'mid', 'r1', 'r2'];
     const threshold = 0.015;
-    document.getElementById('threshold-display').innerText = threshold.toFixed(3);
 
     sensorNames.forEach(name => {
         const topicName = `/sensor_${name}`;
@@ -121,6 +123,8 @@ function subscribeToTopics() {
             } else {
                 indicator.classList.remove('active');
             }
+            telemetryStatus.innerText = "Receiving Data";
+            telemetryStatus.style.color = "var(--accent-green)";
         });
     });
 
@@ -128,22 +132,43 @@ function subscribeToTopics() {
     lineErrorSub.subscribe((message) => {
         const error = message.data;
         lineErrorVal.innerText = error.toFixed(2);
-        
-        // Map -2.0 to 2.0 to 0% to 100%
         const percentage = ((error + 2.0) / 4.0) * 100;
         lineErrorBar.style.width = `${Math.max(0, Math.min(100, percentage))}%`;
     });
 
     odomSub.subscribe((message) => {
-        const linear = message.twist.twist.linear.x;
-        const angular = message.twist.twist.angular.z;
-        
-        // Debugging
-        // console.log(`Odom: Linear=${linear.toFixed(2)}, Angular=${angular.toFixed(2)}`);
-        
-        linearSpeedVal.innerText = linear.toFixed(2);
-        angularSpeedVal.innerText = angular.toFixed(2);
+        linearSpeedVal.innerText = message.twist.twist.linear.x.toFixed(2);
+        angularSpeedVal.innerText = message.twist.twist.angular.z.toFixed(2);
     });
+
+    // Hardware Debug Subscriptions
+    encLSub = new ROSLIB.Topic({ ros: ros, name: '/raw/encoder_l', messageType: 'std_msgs/Int32' });
+    encRSub = new ROSLIB.Topic({ ros: ros, name: '/raw/encoder_r', messageType: 'std_msgs/Int32' });
+    pwmLSub = new ROSLIB.Topic({ ros: ros, name: '/motor/left/pwm', messageType: 'std_msgs/Int32' });
+    pwmRSub = new ROSLIB.Topic({ ros: ros, name: '/motor/right/pwm', messageType: 'std_msgs/Int32' });
+
+    encLSub.subscribe(m => document.getElementById('raw-enc-l').innerText = m.data);
+    encRSub.subscribe(m => document.getElementById('raw-enc-r').innerText = m.data);
+    pwmLSub.subscribe(m => document.getElementById('raw-pwm-l').innerText = m.data);
+    pwmRSub.subscribe(m => document.getElementById('raw-pwm-r').innerText = m.data);
+}
+
+function startSystemMonitor() {
+    setInterval(() => {
+        if (!ros.isConnected) return;
+        
+        ros.getNodes((nodes) => {
+            const list = document.getElementById('node-list');
+            list.innerHTML = nodes.map(n => `<div style="margin-bottom:2px;">• ${n}</div>`).join('');
+        });
+
+        ros.getTopics((topics) => {
+            const list = document.getElementById('topic-list');
+            // topics is an object with {topics: [], types: []} or array depending on version
+            const topicNames = topics.topics || topics;
+            list.innerHTML = topicNames.map(t => `<div style="margin-bottom:2px;">• ${t}</div>`).join('');
+        });
+    }, 2000); // Every 2 seconds
 }
 
 // Manual Control Logic
@@ -160,7 +185,6 @@ manualToggle.addEventListener('change', (e) => {
         joystickContainer.classList.remove('active');
         document.querySelectorAll('.d-btn').forEach(btn => btn.disabled = true);
         stopPublishingCmdVel();
-        // Send a stop command
         publishTwist(0, 0);
     }
 });
@@ -180,7 +204,7 @@ function startPublishingCmdVel() {
         if (isManualMode) {
             publishTwist(currentTwist.linear.x, currentTwist.angular.z);
         }
-    }, 100); // 10Hz
+    }, 100);
 }
 
 function stopPublishingCmdVel() {
@@ -240,10 +264,6 @@ document.getElementById('btn-estop').addEventListener('click', () => {
     }
 });
 
-document.getElementById('btn-calibrate').addEventListener('click', () => {
-    alert('Sensor Calibration Triggered');
-});
-
 // Tuning Apply Button
 document.getElementById('btn-apply-tuning').addEventListener('click', () => {
     if (!tuningPub) {
@@ -260,10 +280,9 @@ document.getElementById('btn-apply-tuning').addEventListener('click', () => {
     
     tuningPub.publish(new ROSLIB.Message({ data: JSON.stringify(params) }));
     
-    // Quick visual feedback on button
     const btn = document.getElementById('btn-apply-tuning');
     const originalText = btn.innerText;
-    btn.innerText = 'Applied!';
+    btn.innerText = 'Synced!';
     btn.style.background = 'var(--accent-green)';
     setTimeout(() => {
         btn.innerText = originalText;
