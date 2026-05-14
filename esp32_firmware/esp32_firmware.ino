@@ -1,5 +1,4 @@
 #include <micro_ros_arduino.h>
-#include <WiFi.h>
 #include <stdio.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
@@ -8,10 +7,6 @@
 #include <std_msgs/msg/int32.h>
 
 // --- CONFIGURATION ---
-const char* ssid = "YOUR_SSID";
-const char* password = "YOUR_PASSWORD";
-const char* agent_ip = "192.168.1.100"; // Host Laptop IP
-const size_t agent_port = 8888;
 const bool INVERT_SENSORS = true; // Set to true if sensors are HIGH on White ground
 
 // --- PIN DEFINITIONS ---
@@ -106,7 +101,7 @@ void set_motor_speed(int pin_en, int in1, int in2, int pwm) {
 
 void setup() {
   Serial.begin(115200);
-  set_microros_wifi_transports((char*)ssid, (char*)password, (char*)agent_ip, agent_port);
+  set_microros_transports();
   
   pinMode(PIN_LED, OUTPUT);
   Serial.println("ESP32 Bridge Starting...");
