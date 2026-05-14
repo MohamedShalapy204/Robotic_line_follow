@@ -106,7 +106,7 @@ void set_motor_speed(int pin_en, int in1, int in2, int pwm) {
 
 void setup() {
   Serial.begin(115200);
-  set_microros_wifi_transports((char*)ssid, (char*)password, agent_ip, agent_port);
+  set_microros_wifi_transports((char*)ssid, (char*)password, (char*)agent_ip, agent_port);
   
   pinMode(PIN_LED, OUTPUT);
   Serial.println("ESP32 Bridge Starting...");
