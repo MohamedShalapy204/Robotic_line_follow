@@ -51,6 +51,7 @@ class LineControllerNode(Node):
         # PID State
         self.prev_error = 0.0
         self.integral = 0.0
+        self.kickstart_count = 0 # Counter for starting pulse
         
         self.get_logger().info("Line Controller Node (Phase 3) started.")
 
@@ -58,7 +59,8 @@ class LineControllerNode(Node):
         command = msg.data.lower()
         if command == "start":
             self.is_active = True
-            self.get_logger().info("Autonomous Mode: ACTIVATED")
+            self.kickstart_count = 5 # Trigger 5-message pulse
+            self.get_logger().info("Autonomous Mode: ACTIVATED (Kickstart Pulse Triggered)")
         elif command == "stop":
             self.is_active = False
             self.get_logger().info("Autonomous Mode: STOPPED")
@@ -94,7 +96,13 @@ class LineControllerNode(Node):
         angular_z = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
         
         twist = Twist()
-        twist.linear.x = self.base_speed
+        
+        # Apply Kickstart Pulse if active, otherwise use base_speed
+        if self.kickstart_count > 0:
+            twist.linear.x = 0.8
+            self.kickstart_count -= 1
+        else:
+            twist.linear.x = self.base_speed
             
         twist.angular.z = angular_z
         
