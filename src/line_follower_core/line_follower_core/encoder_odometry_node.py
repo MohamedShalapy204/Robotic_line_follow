@@ -15,8 +15,8 @@ class EncoderOdometryNode(Node):
         
         # Parameters
         self.declare_parameter("hardware_mode", False)
-        self.declare_parameter("wheel_radius", 0.033)
-        self.declare_parameter("wheel_separation", 0.17)
+        self.declare_parameter("wheel_radius", 0.0325)
+        self.declare_parameter("wheel_separation", 0.11)
         self.declare_parameter("ticks_per_rev", 20.0)
         
         self.hardware_mode = self.get_parameter("hardware_mode").value
@@ -36,15 +36,15 @@ class EncoderOdometryNode(Node):
         
         # TF Broadcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-        self.odom_pub = self.create_publisher(Odometry, "odom", 10)
+        self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
 
         if self.hardware_mode:
             self.get_logger().info("Encoder Odometry: HARDWARE MODE (Subscribing to /raw/encoder_*)")
-            self.create_subscription(Int32, "raw/encoder_l", self.hw_left_callback, 10)
-            self.create_subscription(Int32, "raw/encoder_r", self.hw_right_callback, 10)
+            self.create_subscription(Int32, "/raw/encoder_l", self.hw_left_callback, 10)
+            self.create_subscription(Int32, "/raw/encoder_r", self.hw_right_callback, 10)
         else:
             self.get_logger().info("Encoder Odometry: SIMULATION MODE (Subscribing to /joint_states)")
-            self.create_subscription(JointState, "joint_states", self.joint_states_callback, 10)
+            self.create_subscription(JointState, "/joint_states", self.joint_states_callback, 10)
 
     def hw_left_callback(self, msg):
         # Convert ticks to radians: (ticks / PPR) * 2 * PI
