@@ -12,23 +12,25 @@ const char* ssid = "YOUR_SSID";
 const char* password = "YOUR_PASSWORD";
 IPAddress agent_ip(192, 168, 1, 100); // Host Laptop IP
 const size_t agent_port = 8888;
+const bool INVERT_SENSORS = true; // Set to true if sensors are HIGH on White ground
 
 // --- PIN DEFINITIONS ---
-#define PIN_IR_L2 13
-#define PIN_IR_L1 12
-#define PIN_IR_MID 14
-#define PIN_IR_R1 27
-#define PIN_IR_R2 26
+#define PIN_IR_L2 32
+#define PIN_IR_L1 33
+#define PIN_IR_MID 25
+#define PIN_IR_R1 26
+#define PIN_IR_R2 27
 
-#define PIN_L_ENA 32
-#define PIN_L_IN1 33
-#define PIN_L_IN2 25
-#define PIN_R_ENB 19
-#define PIN_R_IN3 18
-#define PIN_R_IN4 5
+#define PIN_L_ENA 14
+#define PIN_L_IN1 18
+#define PIN_L_IN2 19
+#define PIN_R_ENB 12
+#define PIN_R_IN3 22
+#define PIN_R_IN4 23
 
 #define PIN_ENC_L 34
 #define PIN_ENC_R 35
+#define PIN_LED 13
 
 // --- PWM SETTINGS ---
 const int pwm_freq = 5000;
@@ -66,7 +68,7 @@ const unsigned long timeout_ms = 500;
 
 void error_loop() {
   while(1) {
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    digitalWrite(PIN_LED, !digitalRead(PIN_LED));
     delay(100);
   }
 }
@@ -108,7 +110,7 @@ void setup() {
   Serial.begin(115200);
   set_microros_wifi_transports((char*)ssid, (char*)password, agent_ip, agent_port);
   
-  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(PIN_LED, OUTPUT);
   Serial.println("ESP32 Bridge Starting...");
   
   // IR Sensors
@@ -162,13 +164,15 @@ void setup() {
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_r, &msg_motor_r, &sub_motor_r_callback, ON_NEW_DATA));
 
   Serial.println("Micro-ROS Ready. Bridge Active.");
+  digitalWrite(PIN_LED, HIGH);
 }
 
 void loop() {
   // Publish IR Sensors
   int ir_pins[] = {PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2};
   for(int i=0; i<5; i++) {
-    msg_ir[i].data = digitalRead(ir_pins[i]);
+    int val = digitalRead(ir_pins[i]);
+    msg_ir[i].data = INVERT_SENSORS ? !val : val;
     RCSOFTCHECK(rcl_publish(&pub_ir[i], &msg_ir[i], NULL));
   }
 
