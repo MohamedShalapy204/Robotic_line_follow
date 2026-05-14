@@ -10,7 +10,7 @@
 // --- CONFIGURATION ---
 const char* ssid = "YOUR_SSID";
 const char* password = "YOUR_PASSWORD";
-IPAddress agent_ip(192, 168, 1, 100); // Host Laptop IP
+const char* agent_ip = "192.168.1.100"; // Host Laptop IP
 const size_t agent_port = 8888;
 const bool INVERT_SENSORS = true; // Set to true if sensors are HIGH on White ground
 
@@ -35,8 +35,6 @@ const bool INVERT_SENSORS = true; // Set to true if sensors are HIGH on White gr
 // --- PWM SETTINGS ---
 const int pwm_freq = 5000;
 const int pwm_res = 8;
-const int chan_l = 0;
-const int chan_r = 1;
 
 // --- ROS ENTITIES ---
 rcl_node_t node;
@@ -80,29 +78,29 @@ void IRAM_ATTR count_r() { enc_r_ticks++; }
 // --- CALLBACKS ---
 void sub_motor_l_callback(const void * msgin) {
   const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
-  set_motor_speed(chan_l, PIN_L_IN1, PIN_L_IN2, msg->data);
+  set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, msg->data);
   last_cmd_time = millis();
 }
 
 void sub_motor_r_callback(const void * msgin) {
   const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
-  set_motor_speed(chan_r, PIN_R_IN3, PIN_R_IN4, msg->data);
+  set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, msg->data);
   last_cmd_time = millis();
 }
 
-void set_motor_speed(int chan, int in1, int in2, int pwm) {
+void set_motor_speed(int pin_en, int in1, int in2, int pwm) {
   if (pwm > 0) {
     digitalWrite(in1, HIGH);
     digitalWrite(in2, LOW);
-    ledcWrite(chan, pwm);
+    ledcWrite(pin_en, pwm);
   } else if (pwm < 0) {
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
-    ledcWrite(chan, -pwm);
+    ledcWrite(pin_en, -pwm);
   } else {
     digitalWrite(in1, LOW);
     digitalWrite(in2, LOW);
-    ledcWrite(chan, 0);
+    ledcWrite(pin_en, 0);
   }
 }
 
@@ -125,10 +123,8 @@ void setup() {
   pinMode(PIN_L_IN2, OUTPUT);
   pinMode(PIN_R_IN3, OUTPUT);
   pinMode(PIN_R_IN4, OUTPUT);
-  ledcSetup(chan_l, pwm_freq, pwm_res);
-  ledcAttachPin(PIN_L_ENA, chan_l);
-  ledcSetup(chan_r, pwm_freq, pwm_res);
-  ledcAttachPin(PIN_R_ENB, chan_r);
+  ledcAttach(PIN_L_ENA, pwm_freq, pwm_res);
+  ledcAttach(PIN_R_ENB, pwm_freq, pwm_res);
   
   // Encoders
   pinMode(PIN_ENC_L, INPUT_PULLUP);
@@ -184,8 +180,8 @@ void loop() {
 
   // Safety Failsafe
   if (millis() - last_cmd_time > timeout_ms) {
-    set_motor_speed(chan_l, PIN_L_IN1, PIN_L_IN2, 0);
-    set_motor_speed(chan_r, PIN_R_IN3, PIN_R_IN4, 0);
+    set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, 0);
+    set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, 0);
   }
 
   RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10)));
