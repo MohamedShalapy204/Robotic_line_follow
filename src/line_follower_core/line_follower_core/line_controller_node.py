@@ -51,7 +51,8 @@ class LineControllerNode(Node):
         # PID State
         self.prev_error = 0.0
         self.integral = 0.0
-        self.kickstart_count = 0 # Counter for starting pulse
+        self.kickstart_count = 0 
+        self.kickstart_enabled = False # Default to False
         
         self.get_logger().info("Line Controller Node (Phase 3) started.")
 
@@ -59,8 +60,11 @@ class LineControllerNode(Node):
         command = msg.data.lower()
         if command == "start":
             self.is_active = True
-            self.kickstart_count = 5 # Trigger 5-message pulse
-            self.get_logger().info("Autonomous Mode: ACTIVATED (Kickstart Pulse Triggered)")
+            if self.kickstart_enabled:
+                self.kickstart_count = 5 
+                self.get_logger().info("Autonomous Mode: ACTIVATED (Kickstart Pulse Enabled)")
+            else:
+                self.get_logger().info("Autonomous Mode: ACTIVATED (Kickstart Pulse Disabled)")
         elif command == "stop":
             self.is_active = False
             self.get_logger().info("Autonomous Mode: STOPPED")
@@ -79,7 +83,9 @@ class LineControllerNode(Node):
                 self.ki = float(params['ki'])
             if 'kd' in params:
                 self.kd = float(params['kd'])
-            self.get_logger().info(f"Tuning Updated: Speed={self.base_speed}, Kp={self.kp}, Ki={self.ki}, Kd={self.kd}")
+            if 'kickstart_enabled' in params:
+                self.kickstart_enabled = bool(params['kickstart_enabled'])
+            self.get_logger().info(f"Tuning Updated: Speed={self.base_speed}, Kp={self.kp}, Kickstart={self.kickstart_enabled}")
         except Exception as e:
             self.get_logger().error(f"Failed to parse tuning parameters: {e}")
 

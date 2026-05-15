@@ -278,7 +278,8 @@ document.getElementById('btn-apply-tuning').addEventListener('click', () => {
         kp: parseFloat(document.getElementById('tune-kp').value),
         ki: parseFloat(document.getElementById('tune-ki').value),
         kd: parseFloat(document.getElementById('tune-kd').value),
-        sensor_threshold: parseInt(document.getElementById('tune-sensor-threshold').value)
+        sensor_threshold: parseInt(document.getElementById('tune-sensor-threshold').value),
+        kickstart_enabled: document.getElementById('tune-kickstart').checked
     };
     
     tuningPub.publish(new ROSLIB.Message({ data: JSON.stringify(params) }));
