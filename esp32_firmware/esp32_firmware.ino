@@ -6,15 +6,12 @@
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
 
-// --- CONFIGURATION ---
-const bool INVERT_SENSORS = true; // Set to true if sensors are HIGH on White ground
-
-// --- PIN DEFINITIONS ---
-#define PIN_IR_L2 32
-#define PIN_IR_L1 33
-#define PIN_IR_MID 25
-#define PIN_IR_R1 26
-#define PIN_IR_R2 27
+// --- PIN DEFINITIONS (Updated for Analog ADC1) ---
+#define PIN_IR_L2 36  // VP
+#define PIN_IR_L1 39  // VN
+#define PIN_IR_MID 34
+#define PIN_IR_R1 35
+#define PIN_IR_R2 32
 
 #define PIN_L_ENA 14
 #define PIN_L_IN1 18
@@ -23,8 +20,8 @@ const bool INVERT_SENSORS = true; // Set to true if sensors are HIGH on White gr
 #define PIN_R_IN3 22
 #define PIN_R_IN4 23
 
-#define PIN_ENC_L 34
-#define PIN_ENC_R 35
+#define PIN_ENC_L 33  
+#define PIN_ENC_R 25  
 #define PIN_LED 13
 
 // --- PWM SETTINGS ---
@@ -37,14 +34,10 @@ rclc_support_t support;
 rcl_allocator_t allocator;
 rclc_executor_t executor;
 
-// Publishers
 rcl_publisher_t pub_ir[5];
 rcl_publisher_t pub_enc_l, pub_enc_r;
-
-// Subscribers
 rcl_subscription_t sub_motor_l, sub_motor_r;
 
-// Messages
 std_msgs__msg__Int32 msg_ir[5];
 std_msgs__msg__Int32 msg_enc_l, msg_enc_r;
 std_msgs__msg__Int32 msg_motor_l, msg_motor_r;
@@ -66,22 +59,8 @@ void error_loop() {
   }
 }
 
-// --- INTERRUPTS ---
 void IRAM_ATTR count_l() { enc_l_ticks++; }
 void IRAM_ATTR count_r() { enc_r_ticks++; }
-
-// --- CALLBACKS ---
-void sub_motor_l_callback(const void * msgin) {
-  const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
-  set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, msg->data);
-  last_cmd_time = millis();
-}
-
-void sub_motor_r_callback(const void * msgin) {
-  const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
-  set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, msg->data);
-  last_cmd_time = millis();
-}
 
 void set_motor_speed(int pin_en, int in1, int in2, int pwm) {
   if (pwm > 0) {
@@ -99,14 +78,24 @@ void set_motor_speed(int pin_en, int in1, int in2, int pwm) {
   }
 }
 
+void sub_motor_l_callback(const void * msgin) {
+  const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
+  set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, msg->data);
+  last_cmd_time = millis();
+}
+
+void sub_motor_r_callback(const void * msgin) {
+  const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
+  set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, msg->data);
+  last_cmd_time = millis();
+}
+
 void setup() {
-  Serial.begin(115200);
   set_microros_transports();
   
   pinMode(PIN_LED, OUTPUT);
-  Serial.println("ESP32 Bridge Starting...");
   
-  // IR Sensors
+  // IR Sensors (Analog Pins)
   pinMode(PIN_IR_L2, INPUT);
   pinMode(PIN_IR_L1, INPUT);
   pinMode(PIN_IR_MID, INPUT);
@@ -128,16 +117,11 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PIN_ENC_R), count_r, RISING);
 
   delay(2000);
-
   allocator = rcl_get_default_allocator();
-
-  // Initialize support
   RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
-
-  // Initialize node
   RCCHECK(rclc_node_init_default(&node, "esp32_bridge", "", &support));
 
-  // Initialize publishers
+  // Publishers
   const char* ir_topics[] = {"raw/sensor_l2", "raw/sensor_l1", "raw/sensor_mid", "raw/sensor_r1", "raw/sensor_r2"};
   for(int i=0; i<5; i++) {
     RCCHECK(rclc_publisher_init_default(&pub_ir[i], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), ir_topics[i]));
@@ -145,21 +129,20 @@ void setup() {
   RCCHECK(rclc_publisher_init_default(&pub_enc_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_l"));
   RCCHECK(rclc_publisher_init_default(&pub_enc_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_r"));
 
-  // Initialize subscribers
+  // Subscribers
   RCCHECK(rclc_subscription_init_default(&sub_motor_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/left/pwm"));
   RCCHECK(rclc_subscription_init_default(&sub_motor_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/right/pwm"));
 
-  // Initialize executor
+  // Executor
   RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_l, &msg_motor_l, &sub_motor_l_callback, ON_NEW_DATA));
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_r, &msg_motor_r, &sub_motor_r_callback, ON_NEW_DATA));
 
-  Serial.println("Micro-ROS Ready. Bridge Active.");
   digitalWrite(PIN_LED, HIGH);
 }
 
 void loop() {
-  // Publish IR Sensors
+  // Publish IR Sensors (Reading Analog values 0-4095)
   int ir_pins[] = {PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2};
   for(int i=0; i<5; i++) {
     msg_ir[i].data = analogRead(ir_pins[i]);
@@ -172,7 +155,7 @@ void loop() {
   RCSOFTCHECK(rcl_publish(&pub_enc_l, &msg_enc_l, NULL));
   RCSOFTCHECK(rcl_publish(&pub_enc_r, &msg_enc_r, NULL));
 
-  // Safety Failsafe
+  // Failsafe
   if (millis() - last_cmd_time > timeout_ms) {
     set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, 0);
     set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, 0);
