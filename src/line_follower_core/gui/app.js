@@ -112,13 +112,15 @@ function subscribeToTopics() {
         });
 
         sensorSubs[name].subscribe((message) => {
-            const dist = message.ranges[0];
+            const dist = message.ranges[0]; // 0.010 = Line, 0.020 = Ground
+            const rawVal = message.intensities[0] || 0.0;
             const indicator = document.getElementById(`sensor-${name}-ui`);
             const valueSpan = document.getElementById(`val-${name}`);
             
-            valueSpan.innerText = dist.toFixed(3);
+            valueSpan.innerText = rawVal.toFixed(0);
             
-            if (dist < threshold) {
+            // UI logic: 0.010 is our proxy for "Line Detected"
+            if (dist < 0.015) {
                 indicator.classList.add('active');
             } else {
                 indicator.classList.remove('active');
@@ -275,10 +277,12 @@ document.getElementById('btn-apply-tuning').addEventListener('click', () => {
         base_speed: parseFloat(document.getElementById('tune-speed').value),
         kp: parseFloat(document.getElementById('tune-kp').value),
         ki: parseFloat(document.getElementById('tune-ki').value),
-        kd: parseFloat(document.getElementById('tune-kd').value)
+        kd: parseFloat(document.getElementById('tune-kd').value),
+        sensor_threshold: parseInt(document.getElementById('tune-sensor-threshold').value)
     };
     
     tuningPub.publish(new ROSLIB.Message({ data: JSON.stringify(params) }));
+    document.getElementById('threshold-display').innerText = params.sensor_threshold;
     
     const btn = document.getElementById('btn-apply-tuning');
     const originalText = btn.innerText;
@@ -288,4 +292,9 @@ document.getElementById('btn-apply-tuning').addEventListener('click', () => {
         btn.innerText = originalText;
         btn.style.background = '';
     }, 1000);
+});
+
+// Slider Value Display Listener
+document.getElementById('tune-sensor-threshold').addEventListener('input', (e) => {
+    document.getElementById('sensor-threshold-val').innerText = e.target.value;
 });

@@ -69,7 +69,7 @@
                         </div>
                         <p class="sensor-legend">
                             Status: <span class="ref-val" id="telemetry-status">Awaiting Data...</span><br>
-                            Threshold: <span id="threshold-display">0.015</span>m (Proxy: 1.0=ON, 0.0=OFF)
+                            Threshold: <span id="threshold-display">2000</span> (Raw Analog 0-4095)
                         </p>
                     </div>
 
@@ -162,6 +162,13 @@
                         <div class="input-group">
                             <label for="tune-kd">Kd</label>
                             <input type="number" id="tune-kd" value="0.1" step="0.05">
+                        </div>
+                        <div class="input-group" style="grid-column: span 2;">
+                            <label for="tune-sensor-threshold">Sensor Threshold (Analog)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="range" id="tune-sensor-threshold" min="0" max="4095" value="2000" style="flex: 1;">
+                                <span id="sensor-threshold-val" style="width: 40px; font-weight: bold;">2000</span>
+                            </div>
                         </div>
                     </div>
                     <button class="btn btn-primary" id="btn-apply-tuning" style="margin-top: 10px; width: 100%;">Sync Parameters</button>

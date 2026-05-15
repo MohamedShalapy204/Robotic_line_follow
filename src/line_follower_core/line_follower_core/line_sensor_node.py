@@ -2,8 +2,9 @@
 
 import rclpy
 from rclpy.node import Node
+import json
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Float32, Int32
+from std_msgs.msg import Float32, Int32, String
 
 class LineSensorNode(Node):
     def __init__(self):
@@ -25,6 +26,15 @@ class LineSensorNode(Node):
         
         # Threshold for detecting the line (Sim only: 0.010 is on line, 0.020 is on ground)
         self.detection_threshold = 0.015
+        self.hw_threshold = 2000 # Default for 12-bit ADC (0-4095)
+        
+        # Tuning Subscription
+        self.tuning_sub = self.create_subscription(
+            String,
+            "tuning_params",
+            self.tuning_callback,
+            10
+        )
         
         # Publishers
         self.error_pub = self.create_publisher(Float32, "line_error", 10)
@@ -43,18 +53,30 @@ class LineSensorNode(Node):
         
         self.timer = self.create_timer(0.02, self.timer_callback) # 50Hz
 
+    def tuning_callback(self, msg):
+        try:
+            params = json.loads(msg.data)
+            if 'sensor_threshold' in params:
+                self.hw_threshold = int(params['sensor_threshold'])
+                self.get_logger().info(f"Sensor Threshold Updated: {self.hw_threshold}")
+        except Exception as e:
+            pass
+
     def make_hw_callback(self, idx):
         def callback(msg):
-            # In hardware, 1 is line, 0 is ground (per firmware)
-            self.sensor_values[idx] = float(msg.data)
+            # IR sensors typically return HIGH (large values) on black, LOW (small values) on white
+            is_line = 1.0 if msg.data > self.hw_threshold else 0.0
+            self.sensor_values[idx] = is_line
             
-            # Publish dummy LaserScan for GUI
+            # Publish LaserScan for GUI
             scan = LaserScan()
             scan.header.stamp = self.get_clock().now().to_msg()
             scan.header.frame_id = f"sensor_{self.sensor_names[idx]}"
-            # 0.010 = Line, 0.020 = Ground (matching GUI logic)
-            dist = 0.010 if msg.data == 1 else 0.020
+            # 0.010 = Line, 0.020 = Ground
+            dist = 0.010 if is_line == 1.0 else 0.020
             scan.ranges = [dist]
+            # Send raw value in intensities field for GUI display
+            scan.intensities = [float(msg.data)]
             self.gui_pubs[idx].publish(scan)
         return callback
 

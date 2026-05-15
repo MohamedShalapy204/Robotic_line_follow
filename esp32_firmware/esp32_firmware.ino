@@ -162,8 +162,7 @@ void loop() {
   // Publish IR Sensors
   int ir_pins[] = {PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2};
   for(int i=0; i<5; i++) {
-    int val = digitalRead(ir_pins[i]);
-    msg_ir[i].data = INVERT_SENSORS ? !val : val;
+    msg_ir[i].data = analogRead(ir_pins[i]);
     RCSOFTCHECK(rcl_publish(&pub_ir[i], &msg_ir[i], NULL));
   }
 
