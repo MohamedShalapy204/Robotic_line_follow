@@ -28,10 +28,6 @@ class LineSensorNode(Node):
         self.detection_threshold = 0.015
         self.hw_threshold = 2000 # Default for 12-bit ADC (0-4095)
         
-        # Line Lost Safety
-        self.line_lost_start_time = None
-        self.line_lost_timeout = 2.0 # Seconds before auto-stop
-        
         # Tuning Subscription
         self.tuning_sub = self.create_subscription(
             String,
@@ -42,7 +38,6 @@ class LineSensorNode(Node):
         
         # Publishers
         self.error_pub = self.create_publisher(Float32, "line_error", 10)
-        self.mission_pub = self.create_publisher(String, "mission_control", 10)
         self.gui_pubs = []
         
         if self.hardware_mode:
@@ -97,34 +92,18 @@ class LineSensorNode(Node):
         total_on_line = sum(self.sensor_values)
         
         if total_on_line > 0:
-            # Line found - reset safety timer
-            self.line_lost_start_time = None
-            
             # Weighted average for error
             error = sum(val * weight for val, weight in zip(self.sensor_values, self.weights)) / total_on_line
             self.last_error = error
             msg.data = error
         else:
-            # Line lost - handle safety timeout
-            if self.line_lost_start_time is None:
-                self.line_lost_start_time = self.get_clock().now()
-            
-            elapsed = (self.get_clock().now() - self.line_lost_start_time).nanoseconds / 1e9
-            
-            if elapsed > self.line_lost_timeout:
-                self.get_logger().warn(f"Line lost for {elapsed:.1f}s. Sending EMERGENCY STOP.")
-                stop_msg = String()
-                stop_msg.data = "stop"
-                self.mission_pub.publish(stop_msg)
-                msg.data = 0.0 # Reset error
+            # Line lost - publish extreme error to spin and find line indefinitely
+            if self.last_error > 0:
+                msg.data = 3.0
+            elif self.last_error < 0:
+                msg.data = -3.0
             else:
-                # Still in recovery window - publish extreme error to spin and find line
-                if self.last_error > 0:
-                    msg.data = 3.0
-                elif self.last_error < 0:
-                    msg.data = -3.0
-                else:
-                    msg.data = 0.0
+                msg.data = 0.0
             
         self.error_pub.publish(msg)
 
