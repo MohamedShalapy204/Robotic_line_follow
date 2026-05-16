@@ -38,7 +38,12 @@ class LineSensorNode(Node):
         
         # Publishers
         self.error_pub = self.create_publisher(Float32, "line_error", 10)
+        self.mission_pub = self.create_publisher(String, "mission_control", 10)
         self.gui_pubs = []
+        
+        # Line lost tracking
+        self.line_lost_start_time = None
+        self.stopped_by_line_loss = False
         
         if self.hardware_mode:
             self.get_logger().info("Line Sensor Node: HARDWARE MODE (Subscribing to /raw/sensor_*)")
@@ -65,7 +70,7 @@ class LineSensorNode(Node):
     def make_hw_callback(self, idx):
         def callback(msg):
             # Updated logic: value > threshold means we are on the line (1.0)
-            is_line = 1.0 if msg.data > self.hw_threshold else 0.0
+            is_line = 1.0 if msg.data < self.hw_threshold else 0.0
             self.sensor_values[idx] = is_line
             
             # Publish LaserScan for GUI
@@ -92,20 +97,36 @@ class LineSensorNode(Node):
         total_on_line = sum(self.sensor_values)
         
         if total_on_line > 0:
+            # Line found
+            self.line_lost_start_time = None
+            self.stopped_by_line_loss = False
             # Weighted average for error
             error = sum(val * weight for val, weight in zip(self.sensor_values, self.weights)) / total_on_line
             self.last_error = error
             msg.data = error
+            self.error_pub.publish(msg)
         else:
-            # Line lost - publish extreme error to spin and find line indefinitely
-            if self.last_error > 0:
-                msg.data = 3.0
-            elif self.last_error < 0:
-                msg.data = -3.0
-            else:
-                msg.data = 0.0
-            
-        self.error_pub.publish(msg)
+            # Line lost
+            if not self.stopped_by_line_loss:
+                if self.line_lost_start_time is None:
+                    self.line_lost_start_time = self.get_clock().now()
+                
+                elapsed = (self.get_clock().now() - self.line_lost_start_time).nanoseconds / 1e9
+                
+                if elapsed >= 0.5:
+                    self.get_logger().info("Line lost for 0.5s, stopping.")
+                    stop_msg = String()
+                    stop_msg.data = "stop"
+                    self.mission_pub.publish(stop_msg)
+                    self.stopped_by_line_loss = True
+                    
+                    # Stop publishing error or publish 0.0
+                    msg.data = 0.0
+                    self.error_pub.publish(msg)
+                else:
+                    # Within 0.5s grace period: keep last error but don't search
+                    msg.data = self.last_error
+                    self.error_pub.publish(msg)
 
 def main(args=None):
     rclpy.init(args=args)

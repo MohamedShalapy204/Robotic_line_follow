@@ -32,7 +32,7 @@ ros.on('connection', () => {
     connectBtn.classList.add('btn-success');
     connectBtn.style.backgroundColor = '#10b981';
     console.log('Connected to websocket server.');
-    
+
     // Subscribe/Advertise after connection
     subscribeToTopics();
     startSystemMonitor();
@@ -116,9 +116,9 @@ function subscribeToTopics() {
             const rawVal = message.intensities[0] || 0.0;
             const indicator = document.getElementById(`sensor-${name}-ui`);
             const valueSpan = document.getElementById(`val-${name}`);
-            
+
             valueSpan.innerText = rawVal.toFixed(0);
-            
+
             // UI logic: 0.010 is our proxy for "Line Detected"
             if (dist < 0.015) {
                 indicator.classList.add('active');
@@ -158,7 +158,7 @@ function subscribeToTopics() {
 function startSystemMonitor() {
     setInterval(() => {
         if (!ros.isConnected) return;
-        
+
         ros.getNodes((nodes) => {
             const list = document.getElementById('node-list');
             list.innerHTML = nodes.map(n => `<div style="margin-bottom:2px;">• ${n}</div>`).join('');
@@ -217,19 +217,19 @@ function stopPublishingCmdVel() {
 }
 
 // Button Events
-document.getElementById('btn-up').addEventListener('mousedown', () => { currentTwist.linear.x = 0.5; });
+document.getElementById('btn-up').addEventListener('mousedown', () => { currentTwist.linear.x = 0.8; });
 document.getElementById('btn-up').addEventListener('mouseup', () => { currentTwist.linear.x = 0; });
-document.getElementById('btn-down').addEventListener('mousedown', () => { currentTwist.linear.x = -0.5; });
+document.getElementById('btn-down').addEventListener('mousedown', () => { currentTwist.linear.x = -0.8; });
 document.getElementById('btn-down').addEventListener('mouseup', () => { currentTwist.linear.x = 0; });
-document.getElementById('btn-left').addEventListener('mousedown', () => { currentTwist.angular.z = 1.0; });
+document.getElementById('btn-left').addEventListener('mousedown', () => { currentTwist.angular.z = 5.0; });
 document.getElementById('btn-left').addEventListener('mouseup', () => { currentTwist.angular.z = 0; });
-document.getElementById('btn-right').addEventListener('mousedown', () => { currentTwist.angular.z = -1.0; });
+document.getElementById('btn-right').addEventListener('mousedown', () => { currentTwist.angular.z = -5.0; });
 document.getElementById('btn-right').addEventListener('mouseup', () => { currentTwist.angular.z = 0; });
 
 // Key Events
 window.addEventListener('keydown', (e) => {
     if (!isManualMode) return;
-    switch(e.key.toLowerCase()) {
+    switch (e.key.toLowerCase()) {
         case 'w': currentTwist.linear.x = 0.5; break;
         case 's': currentTwist.linear.x = -0.5; break;
         case 'a': currentTwist.angular.z = 1.0; break;
@@ -239,7 +239,7 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
     if (!isManualMode) return;
-    switch(e.key.toLowerCase()) {
+    switch (e.key.toLowerCase()) {
         case 'w': if (currentTwist.linear.x > 0) currentTwist.linear.x = 0; break;
         case 's': if (currentTwist.linear.x < 0) currentTwist.linear.x = 0; break;
         case 'a': if (currentTwist.angular.z > 0) currentTwist.angular.z = 0; break;
@@ -272,7 +272,7 @@ document.getElementById('btn-apply-tuning').addEventListener('click', () => {
         alert('Not connected to ROS!');
         return;
     }
-    
+
     const params = {
         base_speed: parseFloat(document.getElementById('tune-speed').value),
         kp: parseFloat(document.getElementById('tune-kp').value),
@@ -281,10 +281,10 @@ document.getElementById('btn-apply-tuning').addEventListener('click', () => {
         sensor_threshold: parseInt(document.getElementById('tune-sensor-threshold').value),
         kickstart_enabled: document.getElementById('tune-kickstart').checked
     };
-    
+
     tuningPub.publish(new ROSLIB.Message({ data: JSON.stringify(params) }));
     document.getElementById('threshold-display').innerText = params.sensor_threshold;
-    
+
     const btn = document.getElementById('btn-apply-tuning');
     const originalText = btn.innerText;
     btn.innerText = 'Synced!';

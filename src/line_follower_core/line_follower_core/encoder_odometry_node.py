@@ -16,7 +16,7 @@ class EncoderOdometryNode(Node):
         # Parameters
         self.declare_parameter("hardware_mode", False)
         self.declare_parameter("wheel_radius", 0.0325)
-        self.declare_parameter("wheel_separation", 0.11)
+        self.declare_parameter("wheel_separation", 0.135)
         self.declare_parameter("ticks_per_rev", 20.0)
         
         self.hardware_mode = self.get_parameter("hardware_mode").value

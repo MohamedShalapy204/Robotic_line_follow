@@ -53,6 +53,7 @@ std_msgs__msg__Int32 msg_motor_l, msg_motor_r;
 volatile long enc_l_ticks = 0;
 volatile long enc_r_ticks = 0;
 unsigned long last_cmd_time = 0;
+unsigned long last_pub_time = 0;
 const unsigned long timeout_ms = 500;
 
 // --- MACROS ---
@@ -172,24 +173,29 @@ void setup() {
 }
 
 void loop() {
-  // نشر قراءات الـ IR
-  int ir_pins[] = { PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2 };
-  for (int i = 0; i < 5; i++) {
-    msg_ir[i].data = analogRead(ir_pins[i]);
-    RCSOFTCHECK(rcl_publish(&pub_ir[i], &msg_ir[i], NULL));
+  // Throttle publishing to 20Hz (every 50ms)
+  if (millis() - last_pub_time > 50) {
+    last_pub_time += 50;
+
+    // نشر قراءات الـ IR
+    int ir_pins[] = { PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2 };
+    for (int i = 0; i < 5; i++) {
+      msg_ir[i].data = analogRead(ir_pins[i]);
+      RCSOFTCHECK(rcl_publish(&pub_ir[i], &msg_ir[i], NULL));
+    }
+
+    // حماية قراءة الـ Encoders من التداخل أثناء حدوث المقاطعة (Interrupt)
+    noInterrupts();
+    long current_enc_l = enc_l_ticks;
+    long current_enc_r = enc_r_ticks;
+    interrupts();
+
+    // نشر قراءات الـ Encoders إلى الـ ROS2
+    msg_enc_l.data = current_enc_l;
+    msg_enc_r.data = current_enc_r;
+    RCSOFTCHECK(rcl_publish(&pub_enc_l, &msg_enc_l, NULL));
+    RCSOFTCHECK(rcl_publish(&pub_enc_r, &msg_enc_r, NULL));
   }
-
-  // حماية قراءة الـ Encoders من التداخل أثناء حدوث المقاطعة (Interrupt)
-  noInterrupts();
-  long current_enc_l = enc_l_ticks;
-  long current_enc_r = enc_r_ticks;
-  interrupts();
-
-  // نشر قراءات الـ Encoders إلى الـ ROS2
-  msg_enc_l.data = current_enc_l;
-  msg_enc_r.data = current_enc_r;
-  RCSOFTCHECK(rcl_publish(&pub_enc_l, &msg_enc_l, NULL));
-  RCSOFTCHECK(rcl_publish(&pub_enc_r, &pub_enc_r, NULL));
 
   // Failsafe (إيقاف المحركات إذا انقطع الاتصال)
   if (millis() - last_cmd_time > timeout_ms) {
