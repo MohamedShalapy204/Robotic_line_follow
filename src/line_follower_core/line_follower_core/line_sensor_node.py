@@ -64,8 +64,8 @@ class LineSensorNode(Node):
 
     def make_hw_callback(self, idx):
         def callback(msg):
-            # Updated logic: value < threshold means we are on the line (1.0)
-            is_line = 1.0 if msg.data < self.hw_threshold else 0.0
+            # Updated logic: value > threshold means we are on the line (1.0)
+            is_line = 1.0 if msg.data > self.hw_threshold else 0.0
             self.sensor_values[idx] = is_line
             
             # Publish LaserScan for GUI
