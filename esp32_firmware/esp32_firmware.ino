@@ -1,14 +1,25 @@
-#include <micro_ros_arduino.h>
+ #include <micro_ros_arduino.h>
 #include <stdio.h>
+#include <WiFi.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
 
-// --- PIN DEFINITIONS (Updated for Analog ADC1) ---
-#define PIN_IR_L2 36  // VP
-#define PIN_IR_L1 39  // VN
+// --- إعدادات الواي فاي والـ Agent ---
+char ssid[] = "ronin";              
+char psk[] = "ronin1234";   // اكتبي الباسورد هنا
+char agent_ip[] = "192.168.137.153"; // تم تعديل النوع لنص ليتوافق مع المكتبة
+size_t agent_port = 8888;           
+
+// --- إعدادات الإنكودر ---
+const int TICKS_PER_REV = 20; 
+long last_rotation_count = 0;
+
+// --- PIN DEFINITIONS ---
+#define PIN_IR_L2 36  
+#define PIN_IR_L1 39  
 #define PIN_IR_MID 34
 #define PIN_IR_R1 35
 #define PIN_IR_R2 32
@@ -85,17 +96,20 @@ void sub_motor_l_callback(const void * msgin) {
 }
 
 void sub_motor_r_callback(const void * msgin) {
+  // تم تصحيح الخطأ وحذف السطر الزائد هنا
   const std_msgs__msg__Int32 * msg = (const std_msgs__msg__Int32 *)msgin;
   set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, msg->data);
   last_cmd_time = millis();
 }
 
 void setup() {
-  set_microros_transports();
+  // تفعيل الواي فاي
+  set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
   
   pinMode(PIN_LED, OUTPUT);
+  digitalWrite(PIN_LED, LOW); 
   
-  // IR Sensors (Analog Pins)
+  // IR Sensors
   pinMode(PIN_IR_L2, INPUT);
   pinMode(PIN_IR_L1, INPUT);
   pinMode(PIN_IR_MID, INPUT);
@@ -138,24 +152,31 @@ void setup() {
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_l, &msg_motor_l, &sub_motor_l_callback, ON_NEW_DATA));
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_r, &msg_motor_r, &sub_motor_r_callback, ON_NEW_DATA));
 
-  digitalWrite(PIN_LED, HIGH);
+  digitalWrite(PIN_LED, HIGH); // تنور أول ما الاتصال يتم بنجاح
 }
 
 void loop() {
-  // Publish IR Sensors (Reading Analog values 0-4095)
+  // حساب اللفات: الليد Pin 13 تعكس حالتها كل دورة كاملة للعجلة الشمال
+  long current_rotations = enc_l_ticks / TICKS_PER_REV;
+  if (current_rotations > last_rotation_count) {
+    digitalWrite(PIN_LED, !digitalRead(PIN_LED)); 
+    last_rotation_count = current_rotations;
+  }
+
+  // قراءة ونشر الحساسات
   int ir_pins[] = {PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2};
   for(int i=0; i<5; i++) {
     msg_ir[i].data = analogRead(ir_pins[i]);
     RCSOFTCHECK(rcl_publish(&pub_ir[i], &msg_ir[i], NULL));
   }
 
-  // Publish Encoders
+  // نشر قراءات الإنكودر
   msg_enc_l.data = enc_l_ticks;
   msg_enc_r.data = enc_r_ticks;
   RCSOFTCHECK(rcl_publish(&pub_enc_l, &msg_enc_l, NULL));
   RCSOFTCHECK(rcl_publish(&pub_enc_r, &msg_enc_r, NULL));
 
-  // Failsafe
+  // نظام حماية في حالة انقطاع الاتصال
   if (millis() - last_cmd_time > timeout_ms) {
     set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, 0);
     set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, 0);

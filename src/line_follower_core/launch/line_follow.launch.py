@@ -51,6 +51,15 @@ def generate_launch_description():
         }]
     )
 
+    # --- MICRO-ROS AGENT ---
+    micro_ros_agent_node = Node(
+        package='micro_ros_agent',
+        executable='micro_ros_agent',
+        name='micro_ros_agent',
+        output='screen',
+        arguments=['udp4', '--port', '8888']
+    )
+
     # --- WEB SERVER & ROSBRIDGE ---
     rosbridge_node = Node(
         package='rosbridge_server',
@@ -79,6 +88,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        micro_ros_agent_node,
         line_sensor_node,
         encoder_odometry_node,
         line_controller_node,
