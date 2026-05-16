@@ -32,7 +32,7 @@ class LineControllerNode(Node):
             10
         )
         
-        self.is_active = False
+        self.is_active = True
         
         # Publishers
         self.publisher_ = self.create_publisher(Twist, "cmd_vel", 10)

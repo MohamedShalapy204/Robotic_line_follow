@@ -15,8 +15,7 @@ def generate_launch_description():
         executable='line_sensor_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
-            'hardware_mode': True
+            'use_sim_time': False
         }]
     )
 
@@ -25,8 +24,7 @@ def generate_launch_description():
         executable='encoder_odometry_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
-            'hardware_mode': True
+            'use_sim_time': False
         }]
     )
 
@@ -36,8 +34,10 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'use_sim_time': False,
-            'kp': 1.0, 
-            'base_speed': 0.1
+            'kp': 20.0, 
+            'ki': 0.0,
+            'kd': 0.1,
+            'base_speed': 0.7
         }]
     )
 
@@ -46,45 +46,13 @@ def generate_launch_description():
         executable='motor_driver_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
-            'hardware_mode': True
+            'use_sim_time': False
         }]
-    )
-
-    # --- WEB SERVER & ROSBRIDGE ---
-    rosbridge_node = Node(
-        package='rosbridge_server',
-        executable='rosbridge_websocket',
-        output='screen',
-        parameters=[{'use_sim_time': False}]
-    )
-
-    rosapi_node = Node(
-        package='rosapi',
-        executable='rosapi_node',
-        output='screen',
-        parameters=[{'use_sim_time': False}]
-    )
-
-    gui_path = os.path.join(pkg_path, 'gui')
-    start_gui_server = ExecuteProcess(
-        cmd=['python3', '-m', 'http.server', '8000'],
-        cwd=gui_path,
-        output='screen'
-    )
-
-    open_browser = ExecuteProcess(
-        cmd=['xdg-open', 'http://localhost:8000'],
-        output='screen'
     )
 
     return LaunchDescription([
         line_sensor_node,
         encoder_odometry_node,
         line_controller_node,
-        motor_driver_node,
-        rosbridge_node,
-        rosapi_node,
-        start_gui_server,
-        open_browser
+        motor_driver_node
     ])

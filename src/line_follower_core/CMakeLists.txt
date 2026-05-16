@@ -30,10 +30,6 @@ endif()
 install(
   DIRECTORY
   launch
-  urdf
-  config
-  worlds
-  gui
   DESTINATION share/${PROJECT_NAME}
 )
 

@@ -3,7 +3,6 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import JointState
 from std_msgs.msg import Int32
 from geometry_msgs.msg import Quaternion, TransformStamped
 import math
@@ -14,12 +13,10 @@ class EncoderOdometryNode(Node):
         super().__init__("encoder_odometry_node")
         
         # Parameters
-        self.declare_parameter("hardware_mode", False)
         self.declare_parameter("wheel_radius", 0.0325)
         self.declare_parameter("wheel_separation", 0.135)
         self.declare_parameter("ticks_per_rev", 20.0)
         
-        self.hardware_mode = self.get_parameter("hardware_mode").value
         self.wheel_radius = self.get_parameter("wheel_radius").value
         self.wheel_separation = self.get_parameter("wheel_separation").value
         self.ticks_per_rev = self.get_parameter("ticks_per_rev").value
@@ -38,13 +35,9 @@ class EncoderOdometryNode(Node):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
 
-        if self.hardware_mode:
-            self.get_logger().info("Encoder Odometry: HARDWARE MODE (Subscribing to /raw/encoder_*)")
-            self.create_subscription(Int32, "/raw/encoder_l", self.hw_left_callback, 10)
-            self.create_subscription(Int32, "/raw/encoder_r", self.hw_right_callback, 10)
-        else:
-            self.get_logger().info("Encoder Odometry: SIMULATION MODE (Subscribing to /joint_states)")
-            self.create_subscription(JointState, "/joint_states", self.joint_states_callback, 10)
+        self.get_logger().info("Encoder Odometry: Started (Subscribing to /raw/encoder_*)")
+        self.create_subscription(Int32, "/raw/encoder_l", self.hw_left_callback, 10)
+        self.create_subscription(Int32, "/raw/encoder_r", self.hw_right_callback, 10)
 
     def hw_left_callback(self, msg):
         # Convert ticks to radians: (ticks / PPR) * 2 * PI
@@ -57,17 +50,6 @@ class EncoderOdometryNode(Node):
         self.update_odometry(self.left_pos, pos_rad)
         self.right_pos = pos_rad
 
-    def joint_states_callback(self, msg):
-        try:
-            l_idx = msg.name.index("left_wheel_joint")
-            r_idx = msg.name.index("right_wheel_joint")
-            curr_l = msg.position[l_idx]
-            curr_r = msg.position[r_idx]
-            self.update_odometry(curr_l, curr_r)
-            self.left_pos = curr_l
-            self.right_pos = curr_r
-        except ValueError:
-            return
 
     def update_odometry(self, curr_l, curr_r):
         if self.first_run:
