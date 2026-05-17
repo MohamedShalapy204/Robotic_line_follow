@@ -1,4 +1,5 @@
 #include <micro_ros_arduino.h>
+#include <rmw_microros/rmw_microros.h> // <--- ADDED: Crucial for Wi-Fi Ping
 #include <stdio.h>
 #include <WiFi.h>
 #include <rcl/rcl.h>
@@ -9,6 +10,7 @@
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/string.h>
 #include <geometry_msgs/msg/twist.h>
+#include <nav_msgs/msg/odometry.h>
 
 // --- WI-FI & MICRO-ROS AGENT CONFIGURATION ---
 char ssid[] = "wafaa hammad";              
@@ -48,31 +50,19 @@ rclc_support_t support;
 rcl_allocator_t allocator;
 rclc_executor_t executor;
 
-rcl_publisher_t pub_enc_l, pub_enc_r;
-rcl_publisher_t pub_pwm_l, pub_pwm_r;  // نشر قيم الـ PWM الحقيقية للـ GUI
 rcl_publisher_t pub_error;              // نشر قيمة الـ line_error
-rcl_publisher_t pub_mission;            // نشر أوامر الـ mission_control
-rcl_publisher_t pub_cmd_vel;            // نشر أوامر الحركة للمراقبة
-rcl_subscription_t sub_cmd_vel;         // استقبال أوامر الحركة مباشرة
+rcl_publisher_t pub_odom;               // نشر بيانات الـ Odometry محلياً
 rcl_subscription_t sub_tuning;          // استقبال معاملات الضبط
-rcl_subscription_t sub_mission;         // استقبال أوامر التشغيل/الإيقاف
 
-std_msgs__msg__Int32 msg_enc_l, msg_enc_r;
-std_msgs__msg__Int32 msg_pwm_l, msg_pwm_r;
 std_msgs__msg__Float32 msg_error;
-std_msgs__msg__String msg_mission;
-std_msgs__msg__String msg_mission_sub;
-char mission_sub_buffer[32];
 std_msgs__msg__String msg_tuning;
 char tuning_buffer[128];
-geometry_msgs__msg__Twist msg_cmd_vel;
+nav_msgs__msg__Odometry msg_odom;
 
 // --- STATE ---
 volatile long enc_l_ticks = 0;
 volatile long enc_r_ticks = 0;
-unsigned long last_cmd_time = 0;
 unsigned long last_pub_time = 0;
-const unsigned long timeout_ms = 500;
 
 // --- LINE SENSOR & PID STATE ---
 int hw_threshold = 2000;
@@ -80,7 +70,7 @@ float last_error = 0.0;
 unsigned long line_lost_start_time = 0;
 bool stopped_by_line_loss = false;
 
-bool is_active = false;
+bool is_active = true; // Always start in autonomous mode automatically on boot!
 float kp = 1.2;
 float ki = 0.0;
 float kd = 0.1;
@@ -90,6 +80,20 @@ float integral = 0.0;
 int kickstart_count = 0;
 bool kickstart_enabled = false;
 float wheel_separation = 0.135;
+float left_trim = 1.143;  // Left Motor Trim Factor (Fixed calibration)
+float right_trim = 1.0;
+
+// --- ODOMETRY CALCULATIONS STATE ---
+float wheel_radius = 0.0325;
+float ticks_per_rev = 20.0;
+float odom_x = 0.0;
+float odom_y = 0.0;
+float odom_theta = 0.0;
+unsigned long last_odom_time = 0;
+long last_enc_l = 0;
+long last_enc_r = 0;
+int dir_l = 0; // Commanded direction of left motor: 1, -1, 0
+int dir_r = 0; // Commanded direction of right motor: 1, -1, 0
 
 // --- MACROS ---
 #define RCCHECK(fn) \
@@ -132,6 +136,15 @@ void updateShiftRegister() {
 void set_motor_speed(int motor, int pwm) {
   int pin_pwm;
   uint8_t bit_A, bit_B;
+
+  // Apply motor calibration scaling trim factors
+  if (motor == 1) {
+    pwm = (int)(pwm * left_trim);
+    dir_l = (pwm > 0) ? 1 : ((pwm < 0) ? -1 : 0);
+  } else {
+    pwm = (int)(pwm * right_trim);
+    dir_r = (pwm > 0) ? 1 : ((pwm < 0) ? -1 : 0);
+  }
 
   // تحديد البتات الخاصة بكل موتور حسب تصميم شيلد L293D
   if (motor == 1) { // الموتور اليسار (M1)
@@ -202,13 +215,17 @@ bool get_json_bool(String data, String key, bool default_val) {
 
 void sub_tuning_callback(const void *msgin) {
   const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
+  if (msg == NULL || msg->data.data == NULL) return;
   
-  // Safe null-termination of deserialized buffer
+  // Safe null-termination of deserialized buffer using dynamic pointer
   int len = msg->data.size;
   if (len >= 128) len = 127;
-  tuning_buffer[len] = '\0';
   
-  String data = String(tuning_buffer);
+  char temp_buf[128];
+  memcpy(temp_buf, msg->data.data, len);
+  temp_buf[len] = '\0';
+  
+  String data = String(temp_buf);
   
   hw_threshold = (int)get_json_float(data, "sensor_threshold", hw_threshold);
   kp = get_json_float(data, "kp", kp);
@@ -216,86 +233,13 @@ void sub_tuning_callback(const void *msgin) {
   kd = get_json_float(data, "kd", kd);
   base_speed = get_json_float(data, "base_speed", base_speed);
   kickstart_enabled = get_json_bool(data, "kickstart_enabled", kickstart_enabled);
+  left_trim = get_json_float(data, "left_trim", left_trim);
+  right_trim = get_json_float(data, "right_trim", right_trim);
 }
 
-void sub_mission_callback(const void *msgin) {
-  const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
-  
-  // Safe null-termination of deserialized buffer
-  int len = msg->data.size;
-  if (len >= 32) len = 31;
-  mission_sub_buffer[len] = '\0';
-  
-  String command = String(mission_sub_buffer);
-  command.toLowerCase();
-  command.trim();
-  
-  if (command.equals("start")) {
-    is_active = true;
-    prev_error = 0.0;
-    integral = 0.0;
-    if (kickstart_enabled) {
-      kickstart_count = 5;
-    }
-  } else if (command.equals("stop")) {
-    is_active = false;
-    set_motor_speed(1, 0);
-    set_motor_speed(2, 0);
-  }
-}
 
-void sub_cmd_vel_callback(const void *msgin) {
-  if (is_active) return; // Ignore manual velocity commands while in Autonomous mode
-  
-  const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
-  
-  // ROS 2 Twist messages use 'double' precision
-  double v = msg->linear.x;
-  double omega = msg->angular.z;
-  
-  // Wheel kinematics (Flipped signs to fix reversed steering)
-  float l_raw = v + (omega * wheel_separation / 2.0);
-  float r_raw = v - (omega * wheel_separation / 2.0);
 
-  // Convert to initial PWM
-  int pwm_l = (int)(l_raw * 255.0);
-  int pwm_r = (int)(r_raw * 255.0);
-  
-  // Clamp to absolute hardware limits first
-  if (pwm_l > 255) pwm_l = 255;
-  if (pwm_l < -255) pwm_l = -255;
-  if (pwm_r > 255) pwm_r = 255;
-  if (pwm_r < -255) pwm_r = -255;
-  
-  // Deadband mapping (L293D requires ~90 PWM to move)
-  int min_pwm = 90;
-  
-  // MAP the values instead of clamping them. 
-  // This preserves the PID steering resolution below the deadband limit.
-  if (pwm_l > 0) {
-    pwm_l = map(pwm_l, 1, 255, min_pwm, 255);
-  } else if (pwm_l < 0) {
-    pwm_l = map(pwm_l, -1, -255, -min_pwm, -255);
-  }
-  
-  if (pwm_r > 0) {
-    pwm_r = map(pwm_r, 1, 255, min_pwm, 255);
-  } else if (pwm_r < 0) {
-    pwm_r = map(pwm_r, -1, -255, -min_pwm, -255);
-  }
-  
-  // Drive the physical motors
-  set_motor_speed(1, pwm_l);
-  set_motor_speed(2, pwm_r);
-  
-  // Publish actual PWM values for Web GUI monitoring
-  msg_pwm_l.data = pwm_l;
-  msg_pwm_r.data = pwm_r;
-  RCSOFTCHECK(rcl_publish(&pub_pwm_l, &msg_pwm_l, NULL));
-  RCSOFTCHECK(rcl_publish(&pub_pwm_r, &msg_pwm_r, NULL));
-  
-  last_cmd_time = millis();
-}
+
 
 void setup() {
   pinMode(PIN_LED, OUTPUT);
@@ -310,6 +254,16 @@ void setup() {
 
   // إعداد الـ micro-ROS ليستخدم الواي فاي
   set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
+
+  // ==========================================
+  // ADDED: WAIT FOR AGENT PING (Crucial for Wi-Fi)
+  // ==========================================
+  while (rmw_uros_ping_agent(100, 1) != RCL_RET_OK) {
+    delay(200);
+    digitalWrite(PIN_LED, !digitalRead(PIN_LED)); // وميض أثناء انتظار الـ Agent
+  }
+  digitalWrite(PIN_LED, LOW);
+  // ==========================================
 
   // IR Sensors
   pinMode(PIN_IR_L2, INPUT);
@@ -342,33 +296,31 @@ void setup() {
   RCCHECK(rclc_node_init_default(&node, "esp32_bridge", "", &support));
 
   // Publishers
-  RCCHECK(rclc_publisher_init_default(&pub_enc_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_l"));
-  RCCHECK(rclc_publisher_init_default(&pub_enc_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_r"));
-  RCCHECK(rclc_publisher_init_default(&pub_pwm_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/left/pwm"));
-  RCCHECK(rclc_publisher_init_default(&pub_pwm_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/right/pwm"));
   RCCHECK(rclc_publisher_init_default(&pub_error, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "line_error"));
-  RCCHECK(rclc_publisher_init_default(&pub_mission, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String), "mission_control"));
-  RCCHECK(rclc_publisher_init_default(&pub_cmd_vel, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
+  RCCHECK(rclc_publisher_init_default(&pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom"));
+
+  // Configure frame IDs for Odometry msg
+  msg_odom.header.frame_id.data = (char*)"odom";
+  msg_odom.header.frame_id.size = strlen("odom");
+  msg_odom.header.frame_id.capacity = strlen("odom") + 1;
+  
+  msg_odom.child_frame_id.data = (char*)"base_link";
+  msg_odom.child_frame_id.size = strlen("base_link");
+  msg_odom.child_frame_id.capacity = strlen("base_link") + 1;
+
+  last_odom_time = millis();
 
   // Subscribers
-  RCCHECK(rclc_subscription_init_default(&sub_cmd_vel, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
   RCCHECK(rclc_subscription_init_default(&sub_tuning, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String), "tuning_params"));
-  RCCHECK(rclc_subscription_init_default(&sub_mission, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String), "mission_control"));
 
-  // Configure string buffer for sub_tuning & sub_mission
+  // Configure string buffer for sub_tuning
   msg_tuning.data.data = tuning_buffer;
   msg_tuning.data.size = 0;
   msg_tuning.data.capacity = 128;
 
-  msg_mission_sub.data.data = mission_sub_buffer;
-  msg_mission_sub.data.size = 0;
-  msg_mission_sub.data.capacity = 32;
-
-  // Executor
-  RCCHECK(rclc_executor_init(&executor, &support.context, 3, &allocator));
-  RCCHECK(rclc_executor_add_subscription(&executor, &sub_cmd_vel, &msg_cmd_vel, &sub_cmd_vel_callback, ON_NEW_DATA));
+  // Executor (Only 1 subscription: tuning)
+  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_tuning, &msg_tuning, &sub_tuning_callback, ON_NEW_DATA));
-  RCCHECK(rclc_executor_add_subscription(&executor, &sub_mission, &msg_mission_sub, &sub_mission_callback, ON_NEW_DATA));
 
   digitalWrite(PIN_LED, HIGH);  // إضاءة ثابتة تعني أن كل شيء يعمل ومرتبط بالـ Agent
 }
@@ -421,13 +373,6 @@ void loop() {
           stopped_by_line_loss = true;
           set_motor_speed(1, 0);
           set_motor_speed(2, 0);
-          
-          // نشر أمر الإيقاف بعد نصف ثانية من فقدان الخط (استخدام static memory)
-          static char stop_str[] = "stop";
-          msg_mission.data.data = stop_str;
-          msg_mission.data.size = strlen(stop_str);
-          msg_mission.data.capacity = strlen(stop_str) + 1;
-          RCSOFTCHECK(rcl_publish(&pub_mission, &msg_mission, NULL));
           
           msg_error.data = 0.0;
           RCSOFTCHECK(rcl_publish(&pub_error, &msg_error, NULL));
@@ -491,17 +436,6 @@ void loop() {
       // Drive the physical motors
       set_motor_speed(1, pwm_l);
       set_motor_speed(2, pwm_r);
-      
-      // Publish calculated Twist command back to ROS for telemetry monitoring
-      msg_cmd_vel.linear.x = linear_x;
-      msg_cmd_vel.angular.z = angular_z;
-      RCSOFTCHECK(rcl_publish(&pub_cmd_vel, &msg_cmd_vel, NULL));
-      
-      // Publish actual PWM values for Web GUI monitoring
-      msg_pwm_l.data = pwm_l;
-      msg_pwm_r.data = pwm_r;
-      RCSOFTCHECK(rcl_publish(&pub_pwm_l, &msg_pwm_l, NULL));
-      RCSOFTCHECK(rcl_publish(&pub_pwm_r, &msg_pwm_r, NULL));
     }
 
     // 2. حماية قراءة الـ Encoders من التداخل أثناء المقاطعة
@@ -510,17 +444,59 @@ void loop() {
     long current_enc_r = enc_r_ticks;
     interrupts();
 
-    // نشر قراءات الـ Encoders
-    msg_enc_l.data = current_enc_l;
-    msg_enc_r.data = current_enc_r;
-    RCSOFTCHECK(rcl_publish(&pub_enc_l, &msg_enc_l, NULL));
-    RCSOFTCHECK(rcl_publish(&pub_enc_r, &msg_enc_r, NULL));
-  }
+    // حساب الـ Odometry محلياً ونشرها إلى ROS
+    long delta_ticks_l = current_enc_l - last_enc_l;
+    long delta_ticks_r = current_enc_r - last_enc_r;
+    last_enc_l = current_enc_l;
+    last_enc_r = current_enc_r;
 
-  // Failsafe (إيقاف المحركات إذا انقطع الاتصال في الوضع اليدوي)
-  if (!is_active && (millis() - last_cmd_time > timeout_ms)) {
-    set_motor_speed(1, 0);
-    set_motor_speed(2, 0);
+    // تطبيق إشارات اتجاه حركة المواتير
+    float d_l_ticks = delta_ticks_l * dir_l;
+    float d_r_ticks = delta_ticks_r * dir_r;
+
+    unsigned long now_ms = millis();
+    float dt = (now_ms - last_odom_time) / 1000.0;
+    last_odom_time = now_ms;
+
+    // تحويل النبضات إلى مسافات بالامتار
+    float dist_l = (d_l_ticks / ticks_per_rev) * 2.0 * PI * wheel_radius;
+    float dist_r = (d_r_ticks / ticks_per_rev) * 2.0 * PI * wheel_radius;
+
+    // حساب نموذج الحركة الثنائية
+    float d_center = (dist_l + dist_r) / 2.0;
+    float d_theta = (dist_r - dist_l) / wheel_separation;
+
+    // تحديث الإحداثيات
+    odom_x += d_center * cos(odom_theta + d_theta / 2.0);
+    odom_y += d_center * sin(odom_theta + d_theta / 2.0);
+    odom_theta += d_theta;
+    odom_theta = atan2(sin(odom_theta), cos(odom_theta));
+
+    // حساب السرعات الخطية والزاوية
+    float linear_vel = 0.0;
+    float angular_vel = 0.0;
+    if (dt > 0.0) {
+      linear_vel = d_center / dt;
+      angular_vel = d_theta / dt;
+    }
+
+    // إرسال بيانات الـ Odometry
+    uint64_t now_us = micros();
+    msg_odom.header.stamp.sec = now_us / 1000000;
+    msg_odom.header.stamp.nanosec = (now_us % 1000000) * 1000;
+
+    msg_odom.pose.pose.position.x = odom_x;
+    msg_odom.pose.pose.position.y = odom_y;
+    msg_odom.pose.pose.position.z = 0.0;
+
+    msg_odom.pose.pose.orientation.x = 0.0;
+    msg_odom.pose.pose.orientation.y = 0.0;
+    msg_odom.pose.pose.orientation.z = sin(odom_theta / 2.0);
+    msg_odom.pose.pose.orientation.w = cos(odom_theta / 2.0);
+
+    msg_odom.twist.twist.linear.x = linear_vel;
+    msg_odom.twist.twist.angular.z = angular_vel;
+    RCSOFTCHECK(rcl_publish(&pub_odom, &msg_odom, NULL));
   }
 
   RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10)));
