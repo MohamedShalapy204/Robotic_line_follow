@@ -202,7 +202,13 @@ bool get_json_bool(String data, String key, bool default_val) {
 
 void sub_tuning_callback(const void *msgin) {
   const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
-  String data = String(msg->data.data);
+  
+  // Safe null-termination of deserialized buffer
+  int len = msg->data.size;
+  if (len >= 128) len = 127;
+  tuning_buffer[len] = '\0';
+  
+  String data = String(tuning_buffer);
   
   hw_threshold = (int)get_json_float(data, "sensor_threshold", hw_threshold);
   kp = get_json_float(data, "kp", kp);
@@ -214,7 +220,13 @@ void sub_tuning_callback(const void *msgin) {
 
 void sub_mission_callback(const void *msgin) {
   const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
-  String command = String(msg->data.data);
+  
+  // Safe null-termination of deserialized buffer
+  int len = msg->data.size;
+  if (len >= 32) len = 31;
+  mission_sub_buffer[len] = '\0';
+  
+  String command = String(mission_sub_buffer);
   command.toLowerCase();
   command.trim();
   

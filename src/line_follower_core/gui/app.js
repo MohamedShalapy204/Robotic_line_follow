@@ -92,6 +92,26 @@ function subscribeToTopics() {
         messageType: 'std_msgs/String'
     });
 
+    missionControlPub.subscribe((message) => {
+        const cmd = message.data.toLowerCase().trim();
+        const startBtn = document.getElementById('btn-start-auto');
+        if (cmd === 'start') {
+            isManualMode = false;
+            manualToggle.checked = false;
+            joystickContainer.classList.remove('active');
+            document.querySelectorAll('.d-btn').forEach(btn => btn.disabled = true);
+            stopPublishingCmdVel();
+            
+            startBtn.innerText = "Autonomous Active!";
+            startBtn.style.background = "var(--accent-green)";
+            startBtn.style.boxShadow = "0 0 15px var(--accent-green)";
+        } else if (cmd === 'stop') {
+            startBtn.innerText = "Start Autonomous Lap";
+            startBtn.style.background = "";
+            startBtn.style.boxShadow = "";
+        }
+    });
+
     tuningPub = new ROSLIB.Topic({
         ros: ros,
         name: '/tuning_params',
