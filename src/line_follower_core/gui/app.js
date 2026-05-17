@@ -173,7 +173,7 @@ function startSystemMonitor() {
     }, 2000); // Every 2 seconds
 }
 
-// Manual Control Logic
+// Manual Control State Toggle
 manualToggle.addEventListener('change', (e) => {
     isManualMode = e.target.checked;
     if (isManualMode) {
@@ -216,36 +216,89 @@ function stopPublishingCmdVel() {
     }
 }
 
-// Button Events
-document.getElementById('btn-up').addEventListener('mousedown', () => { currentTwist.linear.x = 0.8; });
-document.getElementById('btn-up').addEventListener('mouseup', () => { currentTwist.linear.x = 0; });
-document.getElementById('btn-down').addEventListener('mousedown', () => { currentTwist.linear.x = -0.8; });
-document.getElementById('btn-down').addEventListener('mouseup', () => { currentTwist.linear.x = 0; });
-document.getElementById('btn-left').addEventListener('mousedown', () => { currentTwist.angular.z = 5.0; });
-document.getElementById('btn-left').addEventListener('mouseup', () => { currentTwist.angular.z = 0; });
-document.getElementById('btn-right').addEventListener('mousedown', () => { currentTwist.angular.z = -5.0; });
-document.getElementById('btn-right').addEventListener('mouseup', () => { currentTwist.angular.z = 0; });
+// ==========================================
+// --- IMPROVED MANUAL CONTROL LOGIC ---
+// ==========================================
 
-// Key Events
+// 1. Track the exact state of each key
+const keys = { w: false, a: false, s: false, d: false };
+
+function updateTwistFromKeys() {
+    let linear = 0;
+    let angular = 0;
+
+    // Combine inputs (holding W and S cancels out, holding W and A curves)
+    if (keys.w) linear += 0.5;
+    if (keys.s) linear -= 0.5;
+    if (keys.a) angular += 1.0;
+    if (keys.d) angular -= 1.0;
+
+    currentTwist.linear.x = linear;
+    currentTwist.angular.z = angular;
+}
+
+// 2. Keyboard Events
 window.addEventListener('keydown', (e) => {
-    if (!isManualMode) return;
-    switch (e.key.toLowerCase()) {
-        case 'w': currentTwist.linear.x = 0.5; break;
-        case 's': currentTwist.linear.x = -0.5; break;
-        case 'a': currentTwist.angular.z = 1.0; break;
-        case 'd': currentTwist.angular.z = -1.0; break;
+    // e.repeat ignores the continuous firing when a key is held down by the OS
+    if (!isManualMode || e.repeat) return;
+    const key = e.key.toLowerCase();
+
+    if (keys.hasOwnProperty(key)) {
+        keys[key] = true;
+        updateTwistFromKeys();
     }
 });
 
 window.addEventListener('keyup', (e) => {
     if (!isManualMode) return;
-    switch (e.key.toLowerCase()) {
-        case 'w': if (currentTwist.linear.x > 0) currentTwist.linear.x = 0; break;
-        case 's': if (currentTwist.linear.x < 0) currentTwist.linear.x = 0; break;
-        case 'a': if (currentTwist.angular.z > 0) currentTwist.angular.z = 0; break;
-        case 'd': if (currentTwist.angular.z < 0) currentTwist.angular.z = 0; break;
+    const key = e.key.toLowerCase();
+
+    if (keys.hasOwnProperty(key)) {
+        keys[key] = false;
+        updateTwistFromKeys();
     }
 });
+
+// 3. Screen Button Events (Mouse + Touch + Failsafe)
+function setupDriveButton(id, lin_val, ang_val) {
+    const btn = document.getElementById(id);
+
+    const startAction = (e) => {
+        if (!isManualMode) return;
+        e.preventDefault(); // Prevents touch from double-firing as a mouse click
+        currentTwist.linear.x = lin_val;
+        currentTwist.angular.z = ang_val;
+    };
+
+    const stopAction = (e) => {
+        if (!isManualMode) return;
+        e.preventDefault();
+        currentTwist.linear.x = 0;
+        currentTwist.angular.z = 0;
+    };
+
+    // Trigger movement on click or touch
+    btn.addEventListener('mousedown', startAction);
+    btn.addEventListener('touchstart', startAction, { passive: false });
+
+    // Stop movement on release
+    btn.addEventListener('mouseup', stopAction);
+    btn.addEventListener('touchend', stopAction);
+
+    // CRITICAL FAILSAFE: Stop if cursor/finger slides off the button
+    btn.addEventListener('mouseleave', stopAction);
+    btn.addEventListener('touchcancel', stopAction);
+}
+
+setupDriveButton('btn-up', 0.8, 0);
+setupDriveButton('btn-down', -0.8, 0);
+setupDriveButton('btn-left', 0, 5.0);
+setupDriveButton('btn-right', 0, -5.0);
+
+
+// ==========================================
+// --- MISSION CONTROL & TUNING LOGIC ---
+// ==========================================
 
 // Mission Control Buttons
 document.getElementById('btn-start-auto').addEventListener('click', () => {

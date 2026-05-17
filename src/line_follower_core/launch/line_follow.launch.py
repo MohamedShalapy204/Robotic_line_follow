@@ -39,15 +39,6 @@ def generate_launch_description():
         }]
     )
 
-    motor_driver_node = Node(
-        package=pkg_name,
-        executable='motor_driver_node.py',
-        output='screen',
-        parameters=[{
-            'use_sim_time': False
-        }]
-    )
-
     # --- WEB SERVER & ROSBRIDGE ---
     rosbridge_node = Node(
         package='rosbridge_server',
@@ -79,7 +70,6 @@ def generate_launch_description():
         line_sensor_node,
         encoder_odometry_node,
         line_controller_node,
-        motor_driver_node,
         rosbridge_node,
         rosapi_node,
         start_gui_server,

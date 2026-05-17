@@ -6,12 +6,13 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
+#include <geometry_msgs/msg/twist.h>
 
 // --- WI-FI & MICRO-ROS AGENT CONFIGURATION ---
-char ssid[] = "ronin";               // اسم شبكة الواي فاي
-char psk[] = "ronin1234";            // كلمة سر الواي فاي
-char agent_ip[] = "192.168.137.206";  // تم التعديل لنص بين علامتي تنصيص  // IP جهاز الـ ROS2 الخاص بكِ
-size_t agent_port = 8888;
+char ssid[] = "wafaa hammad";              
+char psk[] = "12345678";   
+char agent_ip[] = "192.168.137.88"; 
+size_t agent_port = 8888;   
 
 // --- PIN DEFINITIONS ---
 #define PIN_IR_L2 36
@@ -20,12 +21,13 @@ size_t agent_port = 8888;
 #define PIN_IR_R1 35
 #define PIN_IR_R2 32
 
-#define PIN_L_ENA 14
-#define PIN_L_IN1 18
-#define PIN_L_IN2 19
-#define PIN_R_ENB 12
-#define PIN_R_IN3 22
-#define PIN_R_IN4 23
+// --- دبابيس الشيلد الأزرق (L293D Shift Register Pins) ---
+#define PIN_M1_PWM 14  // سرعة الموتور اليسار (M1)
+#define PIN_M2_PWM 27  // سرعة الموتور اليمين (M2)
+#define PIN_LATCH 18   // خط القفل
+#define PIN_CLK 19     // خط النبضات
+#define PIN_DATA 23    // خط البيانات
+#define PIN_EN 22      // خط تفعيل الشريحة (Active Low)
 
 #define PIN_ENC_L 33
 #define PIN_ENC_R 25
@@ -43,11 +45,13 @@ rclc_executor_t executor;
 
 rcl_publisher_t pub_ir[5];
 rcl_publisher_t pub_enc_l, pub_enc_r;
-rcl_subscription_t sub_motor_l, sub_motor_r;
+rcl_publisher_t pub_pwm_l, pub_pwm_r;  // نشر قيم الـ PWM الحقيقية للـ GUI
+rcl_subscription_t sub_cmd_vel;         // استقبال أوامر الحركة مباشرة
 
 std_msgs__msg__Int32 msg_ir[5];
 std_msgs__msg__Int32 msg_enc_l, msg_enc_r;
-std_msgs__msg__Int32 msg_motor_l, msg_motor_r;
+std_msgs__msg__Int32 msg_pwm_l, msg_pwm_r;
+geometry_msgs__msg__Twist msg_cmd_vel;
 
 // --- STATE ---
 volatile long enc_l_ticks = 0;
@@ -83,32 +87,103 @@ void IRAM_ATTR count_r() {
   enc_r_ticks++;
 }
 
-void set_motor_speed(int pin_en, int in1, int in2, int pwm) {
-  if (pwm > 0) {
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-    ledcWrite(pin_en, pwm);
-  } else if (pwm < 0) {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
-    ledcWrite(pin_en, -pwm);
-  } else {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, LOW);
-    ledcWrite(pin_en, 0);
+// متغير لحفظ حالة اتجاه المواتير في الـ Shift Register
+uint8_t latch_state = 0;
+
+// دالة لإرسال الأوامر لشريحة الـ Shift Register
+void updateShiftRegister() {
+  digitalWrite(PIN_LATCH, LOW);
+  shiftOut(PIN_DATA, PIN_CLK, MSBFIRST, latch_state);
+  digitalWrite(PIN_LATCH, HIGH);
+}
+
+// الدالة الجديدة للتحكم في المواتير (رقم 1 لليسار، رقم 2 لليمين)
+void set_motor_speed(int motor, int pwm) {
+  int pin_pwm;
+  uint8_t bit_A, bit_B;
+
+  // تحديد البتات الخاصة بكل موتور حسب تصميم شيلد L293D
+  if (motor == 1) { // الموتور اليسار (M1)
+    pin_pwm = PIN_M1_PWM;
+    bit_A = 4; // Bit 2
+    bit_B = 8; // Bit 3
+  } else {          // الموتور اليمين (M2)
+    pin_pwm = PIN_M2_PWM;
+    bit_A = 2;  // Bit 1
+    bit_B = 16; // Bit 4
   }
+
+  // تحديد الاتجاه بناءً على قيمة الـ PWM (معكوسة لتصحيح الاتجاه)
+  if (pwm > 0) {
+    latch_state &= ~bit_A;  // أمامي (معدّل)
+    latch_state |= bit_B;
+    ledcWrite(pin_pwm, pwm);
+  } else if (pwm < 0) {
+    latch_state |= bit_A;   // خلفي (معدّل)
+    latch_state &= ~bit_B;
+    ledcWrite(pin_pwm, -pwm);
+  } else {
+    latch_state &= ~bit_A;  // توقف
+    latch_state &= ~bit_B;
+    ledcWrite(pin_pwm, 0);
+  }
+  
+  // تطبيق الاتجاه فوراً
+  updateShiftRegister();
 }
 
-void sub_motor_l_callback(const void *msgin) {
-  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
-  set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, msg->data);
-  last_cmd_time = millis();
-}
+// ==========================================
+// --- IMPROVED VELOCITY COMMAND CALLBACK ---
+// ==========================================
+void sub_cmd_vel_callback(const void *msgin) {
+  const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
+  
+  // ROS 2 Twist messages use 'double' precision
+  double v = msg->linear.x;
+  double omega = msg->angular.z;
+  
+  // Wheel kinematics
+  float wheel_separation = 0.135;
+  float l_raw = v - (omega * wheel_separation / 2.0);
+  float r_raw = v + (omega * wheel_separation / 2.0);
 
-void sub_motor_r_callback(const void *msgin) {
-  // تم حذف السطر الخاطئ الذي كان يسبب مشكلة في الكومبايل
-  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
-  set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, msg->data);
+  // Convert to initial PWM
+  int pwm_l = (int)(l_raw * 255.0);
+  int pwm_r = (int)(r_raw * 255.0);
+  
+  // Clamp to absolute hardware limits first
+  if (pwm_l > 255) pwm_l = 255;
+  if (pwm_l < -255) pwm_l = -255;
+  if (pwm_r > 255) pwm_r = 255;
+  if (pwm_r < -255) pwm_r = -255;
+  
+  // Deadband mapping (L293D requires ~90 PWM to move)
+  int min_pwm = 90;
+  
+  // MAP the values instead of clamping them. 
+  // This preserves the PID steering resolution below the deadband limit.
+  if (pwm_l > 0) {
+    pwm_l = map(pwm_l, 1, 255, min_pwm, 255);
+  } else if (pwm_l < 0) {
+    pwm_l = map(pwm_l, -1, -255, -min_pwm, -255);
+  }
+  
+  if (pwm_r > 0) {
+    pwm_r = map(pwm_r, 1, 255, min_pwm, 255);
+  } else if (pwm_r < 0) {
+    pwm_r = map(pwm_r, -1, -255, -min_pwm, -255);
+  }
+  
+  // Drive the physical motors
+  set_motor_speed(1, pwm_l);
+  set_motor_speed(2, pwm_r);
+  
+  // Publish actual PWM values for Web GUI monitoring
+  msg_pwm_l.data = pwm_l;
+  msg_pwm_r.data = pwm_r;
+  RCSOFTCHECK(rcl_publish(&pub_pwm_l, &msg_pwm_l, NULL));
+  RCSOFTCHECK(rcl_publish(&pub_pwm_r, &msg_pwm_r, NULL));
+  
   last_cmd_time = millis();
 }
 
@@ -133,13 +208,17 @@ void setup() {
   pinMode(PIN_IR_R1, INPUT);
   pinMode(PIN_IR_R2, INPUT);
 
-  // Motors
-  pinMode(PIN_L_IN1, OUTPUT);
-  pinMode(PIN_L_IN2, OUTPUT);
-  pinMode(PIN_R_IN3, OUTPUT);
-  pinMode(PIN_R_IN4, OUTPUT);
-  ledcAttach(PIN_L_ENA, pwm_freq, pwm_res);
-  ledcAttach(PIN_R_ENB, pwm_freq, pwm_res);
+  // إعداد دبابيس الشيلد الجديد
+  pinMode(PIN_LATCH, OUTPUT);
+  pinMode(PIN_CLK, OUTPUT);
+  pinMode(PIN_DATA, OUTPUT);
+  pinMode(PIN_EN, OUTPUT);
+  
+  digitalWrite(PIN_EN, LOW); // تفعيل الشريحة (Active Low)
+  updateShiftRegister();     // التأكد من توقف المواتير عند بدء التشغيل
+
+  ledcAttach(PIN_M1_PWM, pwm_freq, pwm_res);
+  ledcAttach(PIN_M2_PWM, pwm_freq, pwm_res);
 
   // Encoders (تفعيل المقاطعات لقراءة الحساسات بدقة)
   pinMode(PIN_ENC_L, INPUT_PULLUP);
@@ -159,15 +238,15 @@ void setup() {
   }
   RCCHECK(rclc_publisher_init_default(&pub_enc_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_l"));
   RCCHECK(rclc_publisher_init_default(&pub_enc_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_r"));
+  RCCHECK(rclc_publisher_init_default(&pub_pwm_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/left/pwm"));
+  RCCHECK(rclc_publisher_init_default(&pub_pwm_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/right/pwm"));
 
   // Subscribers
-  RCCHECK(rclc_subscription_init_default(&sub_motor_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/left/pwm"));
-  RCCHECK(rclc_subscription_init_default(&sub_motor_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/right/pwm"));
+  RCCHECK(rclc_subscription_init_default(&sub_cmd_vel, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
 
   // Executor
-  RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
-  RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_l, &msg_motor_l, &sub_motor_l_callback, ON_NEW_DATA));
-  RCCHECK(rclc_executor_add_subscription(&executor, &sub_motor_r, &msg_motor_r, &sub_motor_r_callback, ON_NEW_DATA));
+  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_add_subscription(&executor, &sub_cmd_vel, &msg_cmd_vel, &sub_cmd_vel_callback, ON_NEW_DATA));
 
   digitalWrite(PIN_LED, HIGH);  // إضاءة ثابتة تعني أن كل شيء يعمل ومرتبط بالـ Agent
 }
@@ -199,8 +278,8 @@ void loop() {
 
   // Failsafe (إيقاف المحركات إذا انقطع الاتصال)
   if (millis() - last_cmd_time > timeout_ms) {
-    set_motor_speed(PIN_L_ENA, PIN_L_IN1, PIN_L_IN2, 0);
-    set_motor_speed(PIN_R_ENB, PIN_R_IN3, PIN_R_IN4, 0);
+    set_motor_speed(1, 0);
+    set_motor_speed(2, 0);
   }
 
   RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10)));
