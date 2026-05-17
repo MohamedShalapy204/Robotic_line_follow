@@ -30,7 +30,6 @@ endif()
 install(
   DIRECTORY
   launch
-  config
   gui
   DESTINATION share/${PROJECT_NAME}
 )
