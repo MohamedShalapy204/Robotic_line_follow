@@ -3,7 +3,6 @@
 This repository contains the implementation of an autonomous differential-drive line-following robot using **ROS 2 Humble** and an **ESP32** microcontroller.
 
 ## 🚀 Features
-- **Dual Mode**: Independent launch files for [Hardware](src/line_follower_core/launch/line_follow.launch.py) and [Simulation](src/line_follower_core/launch/sim.launch.py).
 - **Micro-ROS Integration**: Wireless bridge between ESP32 and Laptop via UDP.
 - **Web Dashboard**: Premium real-time telemetry (LED indicators, velocity plots, PID tuning).
 - **System Observability**: Built-in "System Graph" to monitor active nodes and topics in the browser.
@@ -14,16 +13,14 @@ This repository contains the implementation of an autonomous differential-drive 
 ## 🛠 Prerequisites & Installation
 
 ### 1. ROS 2 Dependencies
-Ensure you have ROS 2 Humble and the necessary simulation/bridge packages installed:
+Ensure you have ROS 2 Humble and the necessary bridge packages installed:
 ```bash
 sudo apt update
-# Install Gazebo & ROS 2 Integration
-sudo apt install ros-humble-gazebo-ros-pkgs ros-humble-xacro ros-humble-robot-state-publisher
 # Install ROSBridge and ROSAPI for the Web Dashboard
 sudo apt install ros-humble-rosbridge-server ros-humble-rosapi
 ```
 
-### 2. Micro-ROS Agent (for Hardware Mode)
+### 2. Micro-ROS Agent
 The agent is required to bridge the ESP32 to the ROS 2 graph. Use Docker for the easiest setup:
 ```bash
 sudo docker run -it --rm --net=host microros/micro-ros-agent:humble udp4 --port 8888
@@ -42,20 +39,13 @@ sudo docker run -it --rm --net=host microros/micro-ros-agent:humble udp4 --port 
 
 2. **Upload ESP32 Firmware**:
    - Navigate to `esp32_firmware/`.
-   - Update `SSID`, `PASSWORD`, and `AGENT_IP` in `esp32_firmware.ino`.
+   - Update `ssid`, `psk`, and `agent_ip` in `esp32_firmware.ino`.
    - Flash the code to your ESP32.
 
 ---
 
 ## 🚦 Running the System
 
-### Mode A: Gazebo Simulation
-Starts the digital twin with the line track and simulation nodes:
-```bash
-ros2 launch line_follower_core sim.launch.py
-```
-
-### Mode B: Physical Robot (Hardware)
 1. **Start the Agent** (in a separate terminal):
    ```bash
    sudo docker run -it --rm --net=host microros/micro-ros-agent:humble udp4 --port 8888
