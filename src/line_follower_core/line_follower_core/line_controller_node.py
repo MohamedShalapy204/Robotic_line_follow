@@ -89,14 +89,37 @@ class LineControllerNode(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to parse tuning parameters: {e}")
 
+    def mission_callback(self, msg):
+        command = msg.data.lower()
+        if command == "start":
+            self.is_active = True
+            # Reset PID memory for a fresh start
+            self.prev_error = 0.0
+            self.integral = 0.0
+            
+            if self.kickstart_enabled:
+                self.kickstart_count = 5 
+                self.get_logger().info("Autonomous Mode: ACTIVATED (Kickstart Pulse Enabled)")
+            else:
+                self.get_logger().info("Autonomous Mode: ACTIVATED (Kickstart Pulse Disabled)")
+        elif command == "stop":
+            self.is_active = False
+            self.get_logger().info("Autonomous Mode: STOPPED")
+            twist = Twist()
+            self.publisher_.publish(twist)
+
     def error_callback(self, msg):
         if not self.is_active:
             return
             
         error = msg.data
         
-        # PID Logic
+        # PID Logic with Anti-Windup
         self.integral += error
+        # Clamp the integral to prevent it from growing infinitely
+        max_integral = 10.0 
+        self.integral = max(-max_integral, min(self.integral, max_integral))
+        
         derivative = error - self.prev_error
         
         angular_z = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)

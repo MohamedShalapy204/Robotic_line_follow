@@ -6,6 +6,8 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
+#include <std_msgs/msg/float32.h>
+#include <std_msgs/msg/string.h>
 #include <geometry_msgs/msg/twist.h>
 
 // --- WI-FI & MICRO-ROS AGENT CONFIGURATION ---
@@ -33,6 +35,9 @@ size_t agent_port = 8888;
 #define PIN_ENC_R 25
 #define PIN_LED 13
 
+// مصفوفة دبابيس الحساسات (تم نقلها لتوفير الذاكرة)
+const int ir_pins[] = { PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2 };
+
 // --- PWM SETTINGS ---
 const int pwm_freq = 5000;
 const int pwm_res = 8;
@@ -43,14 +48,19 @@ rclc_support_t support;
 rcl_allocator_t allocator;
 rclc_executor_t executor;
 
-rcl_publisher_t pub_ir[5];
 rcl_publisher_t pub_enc_l, pub_enc_r;
 rcl_publisher_t pub_pwm_l, pub_pwm_r;  // نشر قيم الـ PWM الحقيقية للـ GUI
+rcl_publisher_t pub_error;              // نشر قيمة الـ line_error
+rcl_publisher_t pub_mission;            // نشر أوامر الـ mission_control
 rcl_subscription_t sub_cmd_vel;         // استقبال أوامر الحركة مباشرة
+rcl_subscription_t sub_tuning;          // استقبال معاملات الضبط
 
-std_msgs__msg__Int32 msg_ir[5];
 std_msgs__msg__Int32 msg_enc_l, msg_enc_r;
 std_msgs__msg__Int32 msg_pwm_l, msg_pwm_r;
+std_msgs__msg__Float32 msg_error;
+std_msgs__msg__String msg_mission;
+std_msgs__msg__String msg_tuning;
+char tuning_buffer[128];
 geometry_msgs__msg__Twist msg_cmd_vel;
 
 // --- STATE ---
@@ -59,6 +69,12 @@ volatile long enc_r_ticks = 0;
 unsigned long last_cmd_time = 0;
 unsigned long last_pub_time = 0;
 const unsigned long timeout_ms = 500;
+
+// --- LINE SENSOR STATE ---
+int hw_threshold = 2000;
+float last_error = 0.0;
+unsigned long line_lost_start_time = 0;
+bool stopped_by_line_loss = false;
 
 // --- MACROS ---
 #define RCCHECK(fn) \
@@ -113,7 +129,7 @@ void set_motor_speed(int motor, int pwm) {
     bit_B = 16; // Bit 4
   }
 
-  // تحديد الاتجاه بناءً على قيمة الـ PWM (معكوسة لتصحيح الاتجاه)
+  // تحديد الاتجاه بناءً على قيمة الـ PWM
   if (pwm > 0) {
     latch_state &= ~bit_A;  // أمامي (معدّل)
     latch_state |= bit_B;
@@ -133,8 +149,26 @@ void set_motor_speed(int motor, int pwm) {
 }
 
 // ==========================================
-// --- IMPROVED VELOCITY COMMAND CALLBACK ---
+// --- IMPROVED TUNING & VELOCITY CALLBACKS ---
 // ==========================================
+void sub_tuning_callback(const void *msgin) {
+  const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
+  String data = String(msg->data.data);
+  int index = data.indexOf("sensor_threshold");
+  if (index != -1) {
+    int colon = data.indexOf(':', index);
+    if (colon != -1) {
+      int comma = data.indexOf(',', colon);
+      if (comma == -1) comma = data.indexOf('}', colon);
+      if (comma != -1) {
+        String val_str = data.substring(colon + 1, comma);
+        val_str.trim();
+        hw_threshold = val_str.toInt();
+      }
+    }
+  }
+}
+
 void sub_cmd_vel_callback(const void *msgin) {
   const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
   
@@ -142,7 +176,7 @@ void sub_cmd_vel_callback(const void *msgin) {
   double v = msg->linear.x;
   double omega = msg->angular.z;
   
-  // Wheel kinematics
+  // Wheel kinematics (Flipped signs to fix reversed steering)
   float wheel_separation = 0.135;
   float l_raw = v + (omega * wheel_separation / 2.0);
   float r_raw = v - (omega * wheel_separation / 2.0);
@@ -232,21 +266,26 @@ void setup() {
   RCCHECK(rclc_node_init_default(&node, "esp32_bridge", "", &support));
 
   // Publishers
-  const char *ir_topics[] = { "raw/sensor_l2", "raw/sensor_l1", "raw/sensor_mid", "raw/sensor_r1", "raw/sensor_r2" };
-  for (int i = 0; i < 5; i++) {
-    RCCHECK(rclc_publisher_init_default(&pub_ir[i], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), ir_topics[i]));
-  }
   RCCHECK(rclc_publisher_init_default(&pub_enc_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_l"));
   RCCHECK(rclc_publisher_init_default(&pub_enc_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "raw/encoder_r"));
   RCCHECK(rclc_publisher_init_default(&pub_pwm_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/left/pwm"));
   RCCHECK(rclc_publisher_init_default(&pub_pwm_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "motor/right/pwm"));
+  RCCHECK(rclc_publisher_init_default(&pub_error, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "line_error"));
+  RCCHECK(rclc_publisher_init_default(&pub_mission, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String), "mission_control"));
 
   // Subscribers
   RCCHECK(rclc_subscription_init_default(&sub_cmd_vel, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
+  RCCHECK(rclc_subscription_init_default(&sub_tuning, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String), "tuning_params"));
+
+  // Configure string buffer for sub_tuning
+  msg_tuning.data.data = tuning_buffer;
+  msg_tuning.data.size = 0;
+  msg_tuning.data.capacity = 128;
 
   // Executor
-  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
   RCCHECK(rclc_executor_add_subscription(&executor, &sub_cmd_vel, &msg_cmd_vel, &sub_cmd_vel_callback, ON_NEW_DATA));
+  RCCHECK(rclc_executor_add_subscription(&executor, &sub_tuning, &msg_tuning, &sub_tuning_callback, ON_NEW_DATA));
 
   digitalWrite(PIN_LED, HIGH);  // إضاءة ثابتة تعني أن كل شيء يعمل ومرتبط بالـ Agent
 }
@@ -256,20 +295,69 @@ void loop() {
   if (millis() - last_pub_time > 50) {
     last_pub_time += 50;
 
-    // نشر قراءات الـ IR
-    int ir_pins[] = { PIN_IR_L2, PIN_IR_L1, PIN_IR_MID, PIN_IR_R1, PIN_IR_R2 };
+    // 1. قراءة الحساسات وحساب الـ error
+    float sensor_values[5];
+    float total_on_line = 0;
+    
     for (int i = 0; i < 5; i++) {
-      msg_ir[i].data = analogRead(ir_pins[i]);
-      RCSOFTCHECK(rcl_publish(&pub_ir[i], &msg_ir[i], NULL));
+      int raw_val = analogRead(ir_pins[i]);
+      
+      // تحديد إذا كان فوق الخط أم لا (القراءة أصغر من العتبة تعني وجود خط)
+      float is_line = (raw_val < hw_threshold) ? 1.0 : 0.0;
+      sensor_values[i] = is_line;
+      total_on_line += is_line;
+    }
+    
+    // حساب انحراف الخط بالمعادلة الموزونة
+    float weights[] = { 2.0, 1.0, 0.0, -1.0, -2.0 };
+    
+    if (total_on_line > 0) {
+      line_lost_start_time = 0;
+      stopped_by_line_loss = false;
+      
+      float sum_weighted = 0;
+      for (int i = 0; i < 5; i++) {
+        sum_weighted += sensor_values[i] * weights[i];
+      }
+      float error = sum_weighted / total_on_line;
+      last_error = error;
+      
+      msg_error.data = error;
+      RCSOFTCHECK(rcl_publish(&pub_error, &msg_error, NULL));
+    } else {
+      // إذا فُقد الخط تماماً
+      if (!stopped_by_line_loss) {
+        if (line_lost_start_time == 0) {
+          line_lost_start_time = millis();
+        }
+        
+        unsigned long elapsed = millis() - line_lost_start_time;
+        if (elapsed >= 500) {
+          // نشر أمر الإيقاف بعد نصف ثانية من فقدان الخط (استخدام static memory)
+          static char stop_str[] = "stop";
+          msg_mission.data.data = stop_str;
+          msg_mission.data.size = strlen(stop_str);
+          msg_mission.data.capacity = strlen(stop_str) + 1;
+          RCSOFTCHECK(rcl_publish(&pub_mission, &msg_mission, NULL));
+          
+          stopped_by_line_loss = true;
+          msg_error.data = 0.0;
+          RCSOFTCHECK(rcl_publish(&pub_error, &msg_error, NULL));
+        } else {
+          // فترة سماح: استمرار نشر آخر انحراف معروف
+          msg_error.data = last_error;
+          RCSOFTCHECK(rcl_publish(&pub_error, &msg_error, NULL));
+        }
+      }
     }
 
-    // حماية قراءة الـ Encoders من التداخل أثناء حدوث المقاطعة (Interrupt)
+    // 2. حماية قراءة الـ Encoders من التداخل أثناء المقاطعة
     noInterrupts();
     long current_enc_l = enc_l_ticks;
     long current_enc_r = enc_r_ticks;
     interrupts();
 
-    // نشر قراءات الـ Encoders إلى الـ ROS2
+    // نشر قراءات الـ Encoders
     msg_enc_l.data = current_enc_l;
     msg_enc_r.data = current_enc_r;
     RCSOFTCHECK(rcl_publish(&pub_enc_l, &msg_enc_l, NULL));

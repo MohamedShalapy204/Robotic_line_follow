@@ -66,7 +66,6 @@ connectBtn.addEventListener('click', () => {
 // ROS Topics
 let lineErrorSub, odomSub, cmdVelPub, missionControlPub, tuningPub;
 let encLSub, encRSub, pwmLSub, pwmRSub;
-let sensorSubs = {};
 
 function subscribeToTopics() {
     lineErrorSub = new ROSLIB.Topic({
@@ -99,36 +98,7 @@ function subscribeToTopics() {
         messageType: 'std_msgs/String'
     });
 
-    // Sensor Topics
-    const sensorNames = ['l2', 'l1', 'mid', 'r1', 'r2'];
-    const threshold = 0.015;
 
-    sensorNames.forEach(name => {
-        const topicName = `/sensor_${name}`;
-        sensorSubs[name] = new ROSLIB.Topic({
-            ros: ros,
-            name: topicName,
-            messageType: 'sensor_msgs/LaserScan'
-        });
-
-        sensorSubs[name].subscribe((message) => {
-            const dist = message.ranges[0]; // 0.010 = Line, 0.020 = Ground
-            const rawVal = message.intensities[0] || 0.0;
-            const indicator = document.getElementById(`sensor-${name}-ui`);
-            const valueSpan = document.getElementById(`val-${name}`);
-
-            valueSpan.innerText = rawVal.toFixed(0);
-
-            // UI logic: 0.010 is our proxy for "Line Detected"
-            if (dist < 0.015) {
-                indicator.classList.add('active');
-            } else {
-                indicator.classList.remove('active');
-            }
-            telemetryStatus.innerText = "Receiving Data";
-            telemetryStatus.style.color = "var(--accent-green)";
-        });
-    });
 
     // Telemetry Subscriptions
     lineErrorSub.subscribe((message) => {

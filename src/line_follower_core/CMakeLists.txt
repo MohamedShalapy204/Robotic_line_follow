@@ -35,7 +35,6 @@ install(
 )
 
 install(PROGRAMS
-  line_follower_core/line_sensor_node.py
   line_follower_core/encoder_odometry_node.py
   line_follower_core/line_controller_node.py
   DESTINATION lib/${PROJECT_NAME}
