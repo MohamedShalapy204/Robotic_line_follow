@@ -19,16 +19,6 @@ def generate_launch_description():
         }]
     )
 
-    line_controller_node = Node(
-        package=pkg_name,
-        executable='line_controller_node.py',
-        output='screen',
-        parameters=[{
-            'use_sim_time': False,
-            'kp': 1.0, 
-            'base_speed': 0.1
-        }]
-    )
 
     # --- WEB SERVER & ROSBRIDGE ---
     rosbridge_node = Node(
@@ -59,7 +49,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         encoder_odometry_node,
-        line_controller_node,
         rosbridge_node,
         rosapi_node,
         start_gui_server,
