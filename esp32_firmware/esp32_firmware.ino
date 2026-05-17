@@ -144,8 +144,8 @@ void sub_cmd_vel_callback(const void *msgin) {
   
   // Wheel kinematics
   float wheel_separation = 0.135;
-  float l_raw = v - (omega * wheel_separation / 2.0);
-  float r_raw = v + (omega * wheel_separation / 2.0);
+  float l_raw = v + (omega * wheel_separation / 2.0);
+  float r_raw = v - (omega * wheel_separation / 2.0);
 
   // Convert to initial PWM
   int pwm_l = (int)(l_raw * 255.0);
