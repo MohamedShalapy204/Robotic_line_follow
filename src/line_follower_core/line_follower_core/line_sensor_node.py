@@ -10,10 +10,6 @@ class LineSensorNode(Node):
     def __init__(self):
         super().__init__("line_sensor_node")
         
-        # Parameters
-        self.declare_parameter("hardware_mode", False)
-        self.hardware_mode = self.get_parameter("hardware_mode").value
-        
         # Sensor topics
         self.sensor_names = ["l2", "l1", "mid", "r1", "r2"]
         
@@ -24,9 +20,8 @@ class LineSensorNode(Node):
         self.sensor_values = [0.0] * len(self.sensor_names)
         self.last_error = 0.0
         
-        # Threshold for detecting the line (Sim only: 0.010 is on line, 0.020 is on ground)
-        self.detection_threshold = 0.015
-        self.hw_threshold = 2000 # Default for 12-bit ADC (0-4095)
+        # Threshold for detecting the line (Default for 12-bit ADC (0-4095))
+        self.hw_threshold = 2000 
         
         # Tuning Subscription
         self.tuning_sub = self.create_subscription(
@@ -45,16 +40,12 @@ class LineSensorNode(Node):
         self.line_lost_start_time = None
         self.stopped_by_line_loss = False
         
-        if self.hardware_mode:
-            self.get_logger().info("Line Sensor Node: HARDWARE MODE (Subscribing to /raw/sensor_*)")
-            # In hardware mode, we subscribe to Int32 and publish LaserScan for GUI compatibility
-            for i, name in enumerate(self.sensor_names):
-                self.create_subscription(Int32, f"raw/sensor_{name}", self.make_hw_callback(i), 10)
-                self.gui_pubs.append(self.create_publisher(LaserScan, f"sensor_{name}", 10))
-        else:
-            self.get_logger().info("Line Sensor Node: SIMULATION MODE (Subscribing to LaserScan)")
-            for i, name in enumerate(self.sensor_names):
-                self.create_subscription(LaserScan, f"sensor_{name}", self.make_sim_callback(i), 10)
+        self.get_logger().info("Line Sensor Node: HARDWARE MODE (Subscribing to /raw/sensor_*)")
+        
+        # In hardware mode, we subscribe to Int32 and publish LaserScan for GUI compatibility
+        for i, name in enumerate(self.sensor_names):
+            self.create_subscription(Int32, f"raw/sensor_{name}", self.make_hw_callback(i), 10)
+            self.gui_pubs.append(self.create_publisher(LaserScan, f"sensor_{name}", 10))
         
         self.timer = self.create_timer(0.02, self.timer_callback) # 50Hz
 
@@ -83,13 +74,6 @@ class LineSensorNode(Node):
             # Send raw value in intensities field for GUI display
             scan.intensities = [float(msg.data)]
             self.gui_pubs[idx].publish(scan)
-        return callback
-
-    def make_sim_callback(self, idx):
-        def callback(msg):
-            if len(msg.ranges) > 0:
-                dist = msg.ranges[0]
-                self.sensor_values[idx] = 1.0 if dist < self.detection_threshold else 0.0
         return callback
 
     def timer_callback(self):

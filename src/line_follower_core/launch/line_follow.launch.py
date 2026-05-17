@@ -15,8 +15,7 @@ def generate_launch_description():
         executable='line_sensor_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
-            'hardware_mode': True
+            'use_sim_time': False
         }]
     )
 
@@ -25,8 +24,7 @@ def generate_launch_description():
         executable='encoder_odometry_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
-            'hardware_mode': True
+            'use_sim_time': False
         }]
     )
 
@@ -46,8 +44,7 @@ def generate_launch_description():
         executable='motor_driver_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
-            'hardware_mode': True
+            'use_sim_time': False
         }]
     )
 
