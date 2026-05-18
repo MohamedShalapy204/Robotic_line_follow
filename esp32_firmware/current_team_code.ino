@@ -65,9 +65,8 @@ void tuneCallback(const void * msgin) {
 }
 
 // --- متغيرات التحكم في الروبوت ---
-enum State { FOLLOWING, STOPPED, ROTATING, FINISHED };
+enum State { FOLLOWING, FINISHED }; // تم إزالة حالات التوقف والدوران
 State robotState = FOLLOWING;
-unsigned long stop_time = 0;
 uint8_t latch_state = 0;
 int lap_counter = 0;           
 bool on_finish_line = false;   
@@ -163,8 +162,8 @@ void loop() {
         if (on_finish_line == false) {
           lap_counter++;               // زود عداد اللفات
           on_finish_line = true;       // تأمين العداد لتسجيل لفة واحدة فقط في كل مرور
-          if (lap_counter!=1){
-            digitalWrite(PIN_LED, HIGH); // <-- التعديل هنا: نور الليد أول ما يلمس الخط
+          if (lap_counter != 1){
+            digitalWrite(PIN_LED, HIGH); // نور الليد أول ما يلمس الخط
           }
         }
       } else {
@@ -178,16 +177,18 @@ void loop() {
         digitalWrite(PIN_LED, HIGH);   
         robotState = FINISHED;         
       } 
-      else if (total_on_line == 0) {
-        set_motor_speed(1, 0);
-        set_motor_speed(2, 0);
-        stop_time = millis();
-        robotState = STOPPED;
-      } else {
-        float weights[] = { 2.0, 1.0, 0.0, -1.0, -2.0 };
-        float sum_weighted = 0;
-        for (int i = 0; i < 5; i++) sum_weighted += sensor_values[i] * weights[i];
-        float error = sum_weighted / total_on_line;
+      else {
+        float error;
+
+        // التعديل الجديد: إذا فقد الخط، نستخدم آخر خطأ مسجل بدلاً من التوقف
+        if (total_on_line == 0) {
+          error = prev_error; 
+        } else {
+          float weights[] = { 2.0, 1.0, 0.0, -1.0, -2.0 };
+          float sum_weighted = 0;
+          for (int i = 0; i < 5; i++) sum_weighted += sensor_values[i] * weights[i];
+          error = sum_weighted / total_on_line;
+        }
 
         // حسابات الـ PID
         integral += error; 
@@ -210,21 +211,9 @@ void loop() {
       }
       break;
 
-    case STOPPED:
-      if (millis() - stop_time > 1000) robotState = ROTATING;
-      break;
-
-    case ROTATING:
-      set_motor_speed(1, -120); set_motor_speed(2, 120);
-      if (sensor_values[2] > 0 || sensor_values[1] > 0 || sensor_values[3] > 0 ) {
-        set_motor_speed(1, 0); set_motor_speed(2, 0);
-        delay(200); prev_error = 0.0; integral = 0.0; 
-        robotState = FOLLOWING;
-      }
-      break;
-
     case FINISHED:
-      set_motor_speed(1, 0); set_motor_speed(2, 0);
+      set_motor_speed(1, 0); 
+      set_motor_speed(2, 0);
       break;
   }
   // قللنا الـ Delay لأن الـ executor_spin_some بيعمل استهلاك للوقت شوية
