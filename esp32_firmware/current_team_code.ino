@@ -34,11 +34,15 @@ float prev_error = 0.0;
 float left_trim_factor = 1.145; 
 
 // State Machine
-enum State { FOLLOWING, STOPPED, ROTATING };
+enum State { FOLLOWING, STOPPED, ROTATING, FINISHED };
 State robotState = FOLLOWING;
 unsigned long stop_time = 0;
 
 uint8_t latch_state = 0;
+
+// متغيرات لحساب عدد اللفات في المسار
+int lap_counter = 0;           // العداد
+bool on_finish_line = false;   // لمنع العداد من الزيادة المستمرة أثناء الوقوف على الخط
 
 // Update the Shift Register for motor directions
 void updateShiftRegister() {
@@ -108,7 +112,8 @@ void setup() {
   ledcAttach(PIN_M1_PWM, pwm_freq, pwm_res);
   ledcAttach(PIN_M2_PWM, pwm_freq, pwm_res);
 
-  digitalWrite(PIN_LED, HIGH); // Indicator that robot is ready
+  // الليد يكون مطفأ في البداية عند تشغيل الروبوت
+  digitalWrite(PIN_LED, LOW); 
   delay(2000); // Give time before moving
 }
 
@@ -128,13 +133,40 @@ void loop() {
   switch (robotState) {
     
     case FOLLOWING:
-      if (total_on_line == 0) {
-        // Line lost: Stop the robot and transition state
+      // اكتشاف خط البداية/النهاية العرضي (قراءة 4 حساسات أو أكثر للون الأسود)
+      // اكتشاف خط البداية/النهاية العرضي (قراءة 4 حساسات أو أكثر للون الأسود)
+      if (total_on_line >= 4) {
+        if (on_finish_line == false) {
+          lap_counter++;               // زود عداد اللفات
+          on_finish_line = true;       // تأمين العداد لتسجيل لفة واحدة فقط في كل مرور
+          if (lap_counter!=1){
+            digitalWrite(PIN_LED, HIGH); // <-- التعديل هنا: نور الليد أول ما يلمس الخط
+          }
+        }
+      } else {
+        on_finish_line = false;        // إعادة فتح العداد عند مغادرة الخط العرضي
+        digitalWrite(PIN_LED, LOW);    // <-- التعديل هنا: اطفي الليد أول ما يسيب الخط عشان تجهز للفة الجاية
+      }
+
+      // هل أتم الروبوت لفتين كاملتين؟ (بافتراض إنه بدأ قبل الخط)
+      if (lap_counter >= 3) {
+        set_motor_speed(1, 0);         // إيقاف المحرك الأيسر
+        set_motor_speed(2, 0);         // إيقاف المحرك الأيمن
+        digitalWrite(PIN_LED, HIGH);   // <-- تأكيد إن الليد تفضل منورة في النهاية وماتطفيش
+        robotState = FINISHED;         // الانتقال لحالة النهاية التامة
+      } 
+      // إذا فقد الخط تماماً
+      else if (total_on_line == 0) {      // الانتقال لحالة النهاية التامة
+      } 
+      // إذا فقد الخط تماماً
+      else if (total_on_line == 0) {
         set_motor_speed(1, 0);
         set_motor_speed(2, 0);
         stop_time = millis();
         robotState = STOPPED;
-      } else {
+      } 
+      // التتبع العادي للمسار باستخدام الـ PID
+      else {
         // Calculate Error
         float weights[] = { 2.0, 1.0, 0.0, -1.0, -2.0 };
         float sum_weighted = 0;
@@ -145,7 +177,7 @@ void loop() {
 
         // PID Calculation
         float derivative = error - prev_error;
-        float correction = (kp * error * 50) + (kd * derivative * 50); // Multiplied to scale appropriately for PWM
+        float correction = (kp * error * 50) + (kd * derivative * 50); 
         prev_error = error;
 
         // Calculate Motor Speeds
@@ -182,6 +214,12 @@ void loop() {
         prev_error = 0.0;
         robotState = FOLLOWING;
       }
+      break;
+
+    case FINISHED:
+      // الروبوت يبقى متوقفاً والليد يظل مضيئاً حتى يتم إعادة التشغيل
+      set_motor_speed(1, 0);
+      set_motor_speed(2, 0);
       break;
   }
 
