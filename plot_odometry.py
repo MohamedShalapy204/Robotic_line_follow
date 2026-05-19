@@ -49,12 +49,12 @@ def main():
         plt.plot(node.odom_x, node.odom_y, '-o', markersize=2, label='Estimated Trajectory')
         plt.plot(node.odom_x[0], node.odom_y[0], 'go', label='Start')
         plt.plot(node.odom_x[-1], node.odom_y[-1], 'ro', label='End')
+        plt.legend()
     plt.xlabel('X (m)')
     plt.ylabel('Y (m)')
     plt.title('Odometry Trajectory (Forward Kinematics)')
     plt.axis('equal')
     plt.grid(True)
-    plt.legend()
 
     # Line Error Plot
     plt.subplot(1, 2, 2)
@@ -62,16 +62,22 @@ def main():
         rms_error = np.sqrt(np.mean(np.square(node.errors)))
         plt.plot(node.errors, label=f'Error (RMS: {rms_error:.3f})')
         plt.axhline(0, color='r', linestyle='--', alpha=0.5)
+        plt.legend()
     plt.xlabel('Time Step / Msg Index')
     plt.ylabel('Lateral Error')
     plt.title('Line Tracking Error Over Time')
     plt.grid(True)
-    plt.legend()
 
     plt.tight_layout()
     plt.savefig('kinematics_results.png')
     print("Saved plot to kinematics_results.png")
-    plt.show()
+    
+    try:
+        plt.show()
+    except Exception as e:
+        print(f"Note: Could not open interactive GUI plot window ({e}).")
+        print("This is normal if you are running in a headless terminal/SSH session.")
+        print("Your plot image has been successfully saved to 'kinematics_results.png'!")
 
 if __name__ == '__main__':
     main()

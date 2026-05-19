@@ -11,4 +11,5 @@ echo "Press Ctrl+C to stop recording after two successful laps."
 mkdir -p ./rosbags
 
 # Record the bag with a timestamped directory
-ros2 bag record -o ./rosbags/lap_recording_$(date +%Y%m%d_%H%M%S) /line_error /cmd_vel /odom
+# ros2 bag record -o ./rosbags/lap_recording_$(date +%Y%m%d_%H%M%S) /line_error /cmd_vel /odom
+ros2 bag record -o ./rosbags/lap_recording_$(date +%Y%m%d_%H%M%S) /odom
