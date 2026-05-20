@@ -19,40 +19,23 @@ class LineSensorNode(Node):
         # Current sensor values (1.0 for on line, 0.0 for ground)
         self.sensor_values = [0.0] * len(self.sensor_names)
         
-        # Threshold for detecting the line (Sim only: 0.010 is on line, 0.020 is on ground)
-        self.detection_threshold = 0.015
-        self.hw_threshold = 2000 # Default for 12-bit ADC (0-4095)
+
+        self.threshold = 2000 # Default for 12-bit ADC (0-4095)
         
-        # Tuning Subscription
-        self.tuning_sub = self.create_subscription(
-            String,
-            "tuning_params",
-            self.tuning_callback,
-            10
-        )
         
         # Publishers
         self.error_pub = self.create_publisher(Float32, "line_error", 10)
         
-        self.get_logger().info("Line Sensor Node: Started (Subscribing to /raw/sensor_*)")
         for i, name in enumerate(self.sensor_names):
-            self.create_subscription(Int32, f"raw/sensor_{name}", self.make_hw_callback(i), 10)
+            self.create_subscription(Int32, f"raw/sensor_{name}", self.make_callback(i), 10)
         
-        self.timer = self.create_timer(0.02, self.timer_callback) # 50Hz
+        self.timer = self.create_timer(0.05, self.timer_callback) # 20Hz
 
-    def tuning_callback(self, msg):
-        try:
-            params = json.loads(msg.data)
-            if 'sensor_threshold' in params:
-                self.hw_threshold = int(params['sensor_threshold'])
-                self.get_logger().info(f"Sensor Threshold Updated: {self.hw_threshold}")
-        except Exception as e:
-            pass
 
-    def make_hw_callback(self, idx):
+    def make_callback(self, idx):
         def callback(msg):
             # Updated logic: value > threshold means we are on the line (1.0)
-            is_line = 1.0 if msg.data < self.hw_threshold else 0.0
+            is_line = 1.0 if msg.data < self.threshold else 0.0
             self.sensor_values[idx] = is_line
         return callback
 

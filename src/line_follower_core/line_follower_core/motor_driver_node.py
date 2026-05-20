@@ -30,21 +30,20 @@ class MotorDriverNode(Node):
         self.pub_l = self.create_publisher(Int32, "motor/left/pwm", 10)
         self.pub_r = self.create_publisher(Int32, "motor/right/pwm", 10)
         
-        self.get_logger().info("Motor Driver: Started (Controlling Real Motors)")
 
     def cmd_vel_callback(self, msg):
         v = msg.linear.x
         omega = msg.angular.z
         
-        # Simple Proportional Mapping: 1.0 (input) = 255 (PWM)
-        # We mix linear and angular velocity based on wheel separation
-        # This treats 'v' and 'omega' as normalized control factors
-        l_raw = v - (omega * self.wheel_separation / 2.0)
-        r_raw = v + (omega * self.wheel_separation / 2.0)
+        # Inverse Kinematics (rad/s) based on Kinematics_Documentation.md unicycle model
+        # w_l = (2*v - omega*L) / (2*r)
+        # w_r = (2*v + omega*L) / (2*r)
+        w_l = (2.0 * v - omega * self.wheel_separation) / (2.0 * self.wheel_radius)
+        w_r = (2.0 * v + omega * self.wheel_separation) / (2.0 * self.wheel_radius)
         
-        # Direct conversion to 8-bit PWM (0-1 -> 0-255)
-        pwm_l = int(l_raw * 255)
-        pwm_r = int(r_raw * 255)
+        # Map wheel angular velocity (rad/s) to 8-bit PWM signals
+        pwm_l = int(w_l * self.pwm_gain)
+        pwm_r = int(w_r * self.pwm_gain)
         
         # Clamp to hardware limits (-255 to 255)
         pwm_l = max(-255, min(255, pwm_l))
