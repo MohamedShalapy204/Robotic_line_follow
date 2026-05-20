@@ -14,10 +14,6 @@
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>sensor_msgs</depend>
-  <depend>xacro</depend>
-  <depend>gazebo_ros</depend>
-  <depend>robot_state_publisher</depend>
 
 
   <test_depend>ament_lint_auto</test_depend>
