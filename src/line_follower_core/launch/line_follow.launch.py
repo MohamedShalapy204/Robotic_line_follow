@@ -9,23 +9,16 @@ def generate_launch_description():
     pkg_name = 'line_follower_core'
     pkg_path = get_package_share_directory(pkg_name)
 
-    # --- UNIVERSAL CORE NODES (HARDWARE MODE) ---
     line_sensor_node = Node(
         package=pkg_name,
         executable='line_sensor_node.py',
         output='screen',
-        parameters=[{
-            'use_sim_time': False
-        }]
     )
 
     encoder_odometry_node = Node(
         package=pkg_name,
         executable='encoder_odometry_node.py',
         output='screen',
-        parameters=[{
-            'use_sim_time': False
-        }]
     )
 
     line_controller_node = Node(
@@ -33,7 +26,6 @@ def generate_launch_description():
         executable='line_controller_node.py',
         output='screen',
         parameters=[{
-            'use_sim_time': False,
             'kp': 20.0, 
             'ki': 0.0,
             'kd': 0.1,
@@ -45,9 +37,6 @@ def generate_launch_description():
         package=pkg_name,
         executable='motor_driver_node.py',
         output='screen',
-        parameters=[{
-            'use_sim_time': False
-        }]
     )
 
     return LaunchDescription([

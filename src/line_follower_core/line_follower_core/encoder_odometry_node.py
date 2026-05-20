@@ -35,17 +35,17 @@ class EncoderOdometryNode(Node):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
 
-        self.get_logger().info("Encoder Odometry: Started (Subscribing to /raw/encoder_*)")
         self.create_subscription(Int32, "/raw/encoder_l", self.hw_left_callback, 10)
         self.create_subscription(Int32, "/raw/encoder_r", self.hw_right_callback, 10)
 
     def hw_left_callback(self, msg):
-        # Convert ticks to radians: (ticks / PPR) * 2 * PI
+        # 1. Angular displacement of left wheel: phi = (ticks / PPR) * 2 * PI
         pos_rad = (msg.data / self.ticks_per_rev) * 2.0 * math.pi
         self.update_odometry(pos_rad, self.right_pos)
         self.left_pos = pos_rad
 
     def hw_right_callback(self, msg):
+        # 1. Angular displacement of right wheel: phi = (ticks / PPR) * 2 * PI
         pos_rad = (msg.data / self.ticks_per_rev) * 2.0 * math.pi
         self.update_odometry(self.left_pos, pos_rad)
         self.right_pos = pos_rad
@@ -59,22 +59,22 @@ class EncoderOdometryNode(Node):
             self.last_time = self.get_clock().now()
             return
 
-        # Delta position (in radians)
-        d_l = curr_l - self.left_pos
-        d_r = curr_r - self.right_pos
+        # 1. Angular displacement of the wheels (Delta phi)
+        delta_phi_l = curr_l - self.left_pos
+        delta_phi_r = curr_r - self.right_pos
 
-        # Delta distance
-        dist_l = d_l * self.wheel_radius
-        dist_r = d_r * self.wheel_radius
+        # 2. Linear distance traveled by each wheel (Delta d_L, Delta d_R)
+        delta_d_l = delta_phi_l * self.wheel_radius
+        delta_d_r = delta_phi_r * self.wheel_radius
 
-        # Unicycle Kinematics
-        d_center = (dist_l + dist_r) / 2.0
-        d_theta = (dist_r - dist_l) / self.wheel_separation
+        # 3. Center distance and heading change (Delta d_c, Delta theta)
+        delta_d_c = (delta_d_l + delta_d_r) / 2.0
+        delta_theta = (delta_d_r - delta_d_l) / self.wheel_separation
 
-        # Update Pose
-        self.x += d_center * math.cos(self.theta + d_theta / 2.0)
-        self.y += d_center * math.sin(self.theta + d_theta / 2.0)
-        self.theta += d_theta
+        # 4. Pose Update (Runge-Kutta 2nd Order Approximation)
+        self.x += delta_d_c * math.cos(self.theta + delta_theta / 2.0)
+        self.y += delta_d_c * math.sin(self.theta + delta_theta / 2.0)
+        self.theta += delta_theta
         self.theta = math.atan2(math.sin(self.theta), math.cos(self.theta))
 
         # Velocity Calculation
@@ -84,8 +84,8 @@ class EncoderOdometryNode(Node):
         linear_vel = 0.0
         angular_vel = 0.0
         if dt > 0:
-            linear_vel = d_center / dt
-            angular_vel = d_theta / dt
+            linear_vel = delta_d_c / dt
+            angular_vel = delta_theta / dt
         
         self.last_time = now
         self.publish_odom(linear_vel, angular_vel)
